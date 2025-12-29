@@ -141,3 +141,65 @@ and2 u_result_b(
   .y(b)
 );
 endmodule  // dmux
+
+module not16(
+  input wire [15:0] a,
+  output wire [15:0] y
+);
+
+genvar i;
+generate
+  for (i = 0; i < 16; ++i) begin
+    not1 u_not(.a(a[i]), .y(y[i]));
+  end
+endgenerate
+
+endmodule  // not16
+
+// and16
+module and16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  output wire [15:0] y
+);
+
+genvar i;
+generate
+  for (i = 0; i < 16; ++i) begin
+    and2 u_and(.a(a[i]), .b(b[i]), .y(y[i]));
+  end
+endgenerate
+
+endmodule  // and16
+
+// or16
+module or16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  output wire [15:0] y
+);
+
+genvar i;
+generate
+  for (i = 0; i < 16; ++i) begin
+    or2 u_or(.a(a[i]), .b(b[i]), .y(y[i]));
+  end
+endgenerate
+
+endmodule  // or16
+
+// mux16
+module mux16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  output wire [15:0] y
+);
+
+genvar i;
+generate
+  for (i = 0; i < 16; ++i) begin
+    mux u_mux(.a(a[i]), .b(b[i]), .y(y[i]));
+  end
+endgenerate
+
+endmodule  // mux16
