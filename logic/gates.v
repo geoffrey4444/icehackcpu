@@ -88,3 +88,56 @@ and2 u_result(
   .y(y)
 );
 endmodule  // xor2
+
+// mux = OR(AND(A,NOT(SEL)),AND(B,SEL))
+module mux(
+  input wire a,
+  input wire b,
+  input wire sel,
+  output wire y
+);
+wire not_sel, a_and_not_sel, b_and_sel;
+not1 u_notsel(
+  .a(sel),
+  .y(not_sel)
+);
+and2 u_a_and_not_sel(
+  .a(a),
+  .b(not_sel),
+  .y(a_and_not_sel)
+);
+and2 u_b_and_sel(
+  .a(b),
+  .b(sel),
+  .y(b_and_sel)
+);
+or2 result(
+  .a(a_and_not_sel),
+  .b(b_and_sel),
+  .y(y)
+);
+endmodule  // mux
+
+// demux: in goes to a or b, depending on sel
+module dmux(
+  input wire in,
+  input wire sel,
+  output wire a,
+  output wire b
+);
+wire not_sel;
+not1 u_notsel(
+  .a(sel),
+  .y(not_sel)
+);
+and2 u_result_a(
+  .a(not_sel),
+  .b(in),
+  .y(a)
+);
+and2 u_result_b(
+  .a(sel),
+  .b(in),
+  .y(b)
+);
+endmodule  // dmux

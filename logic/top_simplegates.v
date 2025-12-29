@@ -4,11 +4,12 @@ module top(
   input wire CLK,
   input wire BTN1,
   input wire BTN2,
+  input wire BTN3,
   output wire LED1,
   output wire LED2,
   output wire LED3,
   output wire LED4,
-  output wire LED5
+  output wire LED5,
 );
 
 // Logic gates to build and test
