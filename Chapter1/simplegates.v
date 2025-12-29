@@ -15,13 +15,13 @@ nand2 gate1(
   .y(nand2out)
 );
 
-// Clock loop just to dim LEDs (only light 1/8th of the time)
+// Clock loop just to dim LEDs (only light 1/32nd of the time)
 reg [7:0] clk_leds = 0; // 8-bit clock for leds
 always @(posedge CLK) begin
   clk_leds <= clk_leds + 1;
-
-  LED1 <= (clk_leds == 0) & nand2out;
 end
+
+assign LED1 = (clk_leds < 8) & nand2out;
 endmodule  // top
 
 // nand2
