@@ -205,12 +205,13 @@ repeat (1000) begin
 end
 
 // Test multi-way dmux
-for (i = 0; i < 2; ++i) begin
-  for (s = 0; s < 3; ++s) begin
+for (j=0; j < 2; ++j) begin
+  in = j;
+  for (s = 0; s < 8; ++s) begin
     sel2 = s[1:0];
     sel3 = s[2:0];
     #1;
-    if (s < 2) begin
+    if (s < 4) begin
       if ((sel2 == 2'b00) & ((aaa != in) | (bbb != 0) | (ccc != 0) | (ddd != 0) )) $fatal;
       if ((sel2 == 2'b01) & ((aaa != 0) | (bbb != in) | (ccc != 0) | (ddd != 0) )) $fatal;
       if ((sel2 == 2'b10) & ((aaa != 0) | (bbb != 0) | (ccc != in) | (ddd != 0) )) $fatal;
