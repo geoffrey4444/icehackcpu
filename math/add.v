@@ -51,3 +51,10 @@ endgenerate
 endmodule  // add16
 
 // inc16 16-bit incrementer
+module inc16(
+  input wire [15:0] a,
+  output wire [15:0] sum
+);
+localparam signed [15:0] one = 16'sd1;
+add16 u_add16(.a(a), .b(one), .sum(sum));
+endmodule  // inc16

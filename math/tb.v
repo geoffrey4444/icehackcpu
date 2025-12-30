@@ -11,6 +11,7 @@ wire signed [15:0] sum16reverse;
 wire signed [15:0] sum16assoc1;
 wire signed [15:0] sum16bc;
 wire signed [15:0] sum16assoc2;
+wire signed [15:0] suminc16;
 wire sum, carry, full_sum, full_carry;
 integer i, j, k;
 localparam signed [15:0] MAX = 16'sd32767;
@@ -23,6 +24,7 @@ add16 u_add16reverse(.a(b16), .b(a16), .sum(sum16reverse));
 add16 u_add16dist1(.a(sum16), .b(c16), .sum(sum16assoc1));
 add16 u_add16bc(.a(b16), .b(c16), .sum(sum16bc));
 add16 u_add16dist2(.a(sum16bc), .b(a16), .sum(sum16assoc2));
+inc16 u_inc16(.a(a16), .sum(suminc16));
 
 initial begin
 for (i = 0; i < 2; ++i) begin
@@ -59,6 +61,11 @@ repeat (1000) begin
   b16 = $signed($random);
   c16 = $signed($random);
   #1;
+
+  // check increment...thoroughly test add16, 
+  // which inc16 is based on, below, so just make
+  // sure the random a16 is actually incremented
+  if ($signed(suminc16) != a16 + 16'sd1) $fatal;
 
   if ($signed(sum16reverse) != $signed(sum16)) $fatal; // commutative
   if ($signed(sum16assoc1) != $signed(sum16assoc2)) $fatal; // associative
