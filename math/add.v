@@ -33,5 +33,21 @@ mux u_mux_carry(.a(carry_bc), .b(or_carry_bc), .sel(a), .y(carry));
 endmodule  // full_adder
 
 // add16 16-bit adder
+module add16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  output wire [15:0] sum
+  );
+wire [15:0] carry;
+half_adder u_half(.a(a[0]), .b(b[0]), .sum(sum[0]), .carry(carry[0]));
+
+genvar i;
+generate
+  for (i = 1; i < 16; ++i) begin
+    full_adder u_full(.a(a[i]), .b(b[i]), .c(carry[i-1]), .sum(sum[i]), .carry(carry[i]));
+  end
+endgenerate
+
+endmodule  // add16
 
 // inc16 16-bit incrementer
