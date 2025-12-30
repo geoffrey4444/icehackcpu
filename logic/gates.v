@@ -192,14 +192,135 @@ endmodule  // or16
 module mux16(
   input wire [15:0] a,
   input wire [15:0] b,
+  input wire sel,
   output wire [15:0] y
 );
 
 genvar i;
 generate
   for (i = 0; i < 16; ++i) begin
-    mux u_mux(.a(a[i]), .b(b[i]), .y(y[i]));
+    mux u_mux(.a(a[i]), .b(b[i]), .sel(sel), .y(y[i]));
   end
 endgenerate
 
 endmodule  // mux16
+
+// or8way
+module or8way(
+  input wire [7:0] a,
+  output wire y
+);
+wire or01, or23, or45, or67, or0123, or4567;
+or2 u_or01(.a(a[0]), .b(a[1]), .y(or01));
+or2 u_or23(.a(a[2]), .b(a[3]), .y(or23));
+or2 u_or45(.a(a[4]), .b(a[5]), .y(or45));
+or2 u_or67(.a(a[6]), .b(a[7]), .y(or67));
+or2 u_or0123(.a(or01), .b(or23), .y(or0123));
+or2 u_or4567(.a(or45), .b(or67), .y(or4567));
+or2 u_result(.a(or0123), .b(or4567), .y(y));
+endmodule  // or8way
+
+// mux4way16
+module mux4way16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  input wire [15:0] c,
+  input wire [15:0] d,
+  input wire [1:0] sel,
+  output wire [15:0] y
+);
+wire [15:0] muxab;
+wire [15:0] muxcd;
+mux16 u_muxab(.a(a), .b(b), .sel(sel[0]), .y(muxab));
+mux16 u_muxcd(.a(c), .b(d), .sel(sel[0]), .y(muxcd));
+mux16 uresult(.a(muxab), .b(muxcd), .sel(sel[1]), .y(y));
+endmodule  // mux4way16
+
+// mux8way16
+module mux8way16(
+  input wire [15:0] a,
+  input wire [15:0] b,
+  input wire [15:0] c,
+  input wire [15:0] d,
+  input wire [15:0] e,
+  input wire [15:0] f,
+  input wire [15:0] g,
+  input wire [15:0] h,
+  input wire [2:0] sel,
+  output wire [15:0] y
+);
+wire [15:0] muxabcd;
+wire [15:0] muxefgh;
+mux4way16 u_mux4way16abcd(.a(a), .b(b), .c(c), .d(d), .sel(sel[1:0]), .y(muxabcd));
+mux4way16 u_mux4way16efgh(.a(e), .b(f), .c(g), .d(h), .sel(sel[1:0]), .y(muxefgh));
+mux16 u_mux16(.a(muxabcd), .b(muxefgh), .sel(sel[2]), .y(y));
+
+endmodule  // mux8way16
+
+module dmux4way(
+  input wire in,
+  input wire [1:0] sel,
+  output wire a,
+  output wire b,
+  output wire c,
+  output wire d
+);
+wire a_ab;
+wire b_ab;
+wire c_cd;
+wire d_cd;
+
+dmux muxab(.in(in), .sel(sel[0]), .a(a_ab), .b(b_ab));
+dmux muxcd(.in(in), .sel(sel[0]), .a(c_cd), .b(d_cd));
+
+wire not_sel1;
+not1 u_notsel(
+  .a(sel[1]),
+  .y(not_sel1)
+);
+
+and2 and_a(.a(a_ab), .b(not_sel1), .y(a));
+and2 and_b(.a(b_ab), .b(not_sel1), .y(b));
+and2 and_c(.a(c_cd), .b(sel[1]), .y(c));
+and2 and_d(.a(d_cd), .b(sel[1]), .y(d));
+endmodule  // dmux4way
+
+module dmux8way(
+  input wire in,
+  input wire [2:0] sel,
+  output wire a,
+  output wire b,
+  output wire c,
+  output wire d,
+  output wire e,
+  output wire f,
+  output wire g,
+  output wire h
+);
+wire a_abcd;
+wire b_abcd;
+wire c_abcd;
+wire d_abcd;
+wire e_efgh;
+wire f_efgh;
+wire g_efgh;
+wire h_efgh;
+
+dmux4way muxabcd(.in(in), .sel(sel[1:0]), .a(a_abcd), .b(b_abcd), .c(c_abcd), .d(d_abcd));
+dmux4way muxefgh(.in(in), .sel(sel[1:0]), .a(e_efgh), .b(f_efgh), .c(g_efgh), .d(h_efgh));
+
+wire not_sel2;
+not1 u_notsel(
+  .a(sel[2]),
+  .y(not_sel2)
+);
+
+and2 and_a(.a(a_abcd), .b(not_sel2), .y(a));
+and2 and_b(.a(b_abcd), .b(not_sel2), .y(b));
+and2 and_c(.a(c_abcd), .b(not_sel2), .y(c));
+and2 and_d(.a(d_abcd), .b(not_sel2), .y(d));
+and2 and_e(.a(e_efgh), .b(sel[2]), .y(e));
+and2 and_f(.a(f_efgh), .b(sel[2]), .y(f));
+and2 and_g(.a(g_efgh), .b(sel[2]), .y(g));
+and2 and_h(.a(h_efgh), .b(sel[2]), .y(h));
+endmodule  // dmux8way
