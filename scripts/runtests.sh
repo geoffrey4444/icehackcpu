@@ -6,6 +6,9 @@ export REPO_ROOT="${SCRIPT_DIR%/*}"
 echo "memory/tb_dff.v"
 $SCRIPT_DIR/runtest.sh $REPO_ROOT/memory/tb_dff.v $REPO_ROOT/memory/dff.v $REPO_ROOT/logic/gates.v
 
+echo "memory/tb_memory_dff.v"
+$SCRIPT_DIR/runtest.sh $REPO_ROOT/memory/tb_memory_dff.v $REPO_ROOT/memory/memory_dff.v $REPO_ROOT/memory/dff.v $REPO_ROOT/logic/gates.v
+
 # Run ALU tests
 echo "math/tb_alu.v"
 $SCRIPT_DIR/runtest.sh $REPO_ROOT/math/tb_alu.v $REPO_ROOT/math/alu.v $REPO_ROOT/math/add.v $REPO_ROOT/logic/gates.v

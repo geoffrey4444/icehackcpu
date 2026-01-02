@@ -7,6 +7,13 @@ always @(posedge clock) begin
 end
 endmodule  // dff
 
+
+/////////////////////////////////////////////////////////////////////
+// Below is a pedagogical demonstration for simulation of how
+// to implement a dff from logic gates. This won't work on real
+// FGPA hardware. Use dff instead.
+/////////////////////////////////////////////////////////////////////
+
 // pedagogical: build up an equivalent dff from gates
 // behavior: set q=1 when not_set = 0; set q=0 when not_reset=0;
 //           hold value when not_set = not_reset = 1
