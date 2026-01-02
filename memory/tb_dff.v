@@ -39,10 +39,6 @@ initial begin
   #2 if (out != 0) $fatal;        // t=46ns : now low; after tick
   #10 if (out != 0) $fatal;       // t=56ns : still low after another tick
   
-  run_clock = 0; // we're done; stop clock updates
-end
-
-initial begin
   clock = 0;
   in = 0;
   #15; // wait to make sure in and out are initially 0

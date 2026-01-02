@@ -9,7 +9,7 @@ module top(
   output wire LED2,
   output wire LED3,
   output wire LED4,
-  output wire LED5,
+  output wire LED5
 );
 
 // Logic gates to build and test

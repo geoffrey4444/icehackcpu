@@ -7,7 +7,7 @@ module top(
   input wire BTN3,
   output wire LED1,
   output wire LED2,
-  output wire LED3,
+  output wire LED3
 );
 
 // Logic gates to build and test
