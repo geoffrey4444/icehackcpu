@@ -1,4 +1,9 @@
-# From icebreaker-verilog-examples/icebreaker/icebreaker.pcf
+# From https://github.com/icebreaker-fpga/icebreaker-verilog-examples
+# There is no license in that repo. But the file appears to 
+# derive from icebreaker.pcf in
+# https://github.com/YosysHQ/icestorm/tree/master?tab=ISC-1-ov-file
+# just with some pin differences. 
+# The latter is licensed by icf.
 # 12 MHz clock
 set_io -nowarn CLK        35
 set_frequency CLK 12
