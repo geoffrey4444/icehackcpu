@@ -26,3 +26,53 @@ generate
   end
 endgenerate
 endmodule  //register16
+
+// 8x16-bit-register RAM
+module ram8(
+  input wire clock,
+  input wire [15:0] in,
+  input wire load,
+  input wire [2:0] address,
+  output wire [15:0] out
+);
+wire [7:0] load_n;
+wire [15:0] out_0;
+wire [15:0] out_1;
+wire [15:0] out_2;
+wire [15:0] out_3;
+wire [15:0] out_4;
+wire [15:0] out_5;
+wire [15:0] out_6;
+wire [15:0] out_7;
+dmux8way u_dmux8way(.in(load), 
+         .sel(address),
+         .a(load_n[0]), 
+         .b(load_n[1]),
+         .c(load_n[2]),
+         .d(load_n[3]),
+         .e(load_n[4]),
+         .f(load_n[5]),
+         .g(load_n[6]),
+         .h(load_n[7]));
+register16 u_reg0(.clock(clock), .in(in), .load(load_n[0]), .out(out_0));
+register16 u_reg1(.clock(clock), .in(in), .load(load_n[1]), .out(out_1));
+register16 u_reg2(.clock(clock), .in(in), .load(load_n[2]), .out(out_2));
+register16 u_reg3(.clock(clock), .in(in), .load(load_n[3]), .out(out_3));
+register16 u_reg4(.clock(clock), .in(in), .load(load_n[4]), .out(out_4));
+register16 u_reg5(.clock(clock), .in(in), .load(load_n[5]), .out(out_5));
+register16 u_reg6(.clock(clock), .in(in), .load(load_n[6]), .out(out_6));
+register16 u_reg7(.clock(clock), .in(in), .load(load_n[7]), .out(out_7));
+mux8way16 u_mux_for_out(
+  .a(out_0),
+  .b(out_1),
+  .c(out_2),
+  .d(out_3),
+  .e(out_4),
+  .f(out_5),
+  .g(out_6),
+  .h(out_7),
+  .sel(address),
+  .y(out)
+);
+
+endmodule  // ram8
