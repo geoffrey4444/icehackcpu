@@ -76,3 +76,52 @@ mux8way16 u_mux_for_out(
 );
 
 endmodule  // ram8
+
+module counter16(
+  input wire clock,
+  input wire[15:0] in,
+  input wire increment,
+  input wire load,
+  input wire reset,
+  output wire[15:0] out
+);
+
+wire reset_or_increment, load_register;
+wire [15:0] input_to_register;
+wire [15:0] out_plus_one;
+wire [1:0] which_output;
+wire not_reset, not_increment, not_load;
+wire load_or_not_increment;
+
+or2 u_reset_or_increment(.a(reset), .b(increment), .y(reset_or_increment));
+or2 u_load_register(.a(reset_or_increment), .b(load), .y(load_register));
+
+// select which output
+// 00 = reset, 01 = load, 10 = inc, 11 = nothing
+// bit 1 (left bit): only = 1 when reset = 0 and load = 0
+// bit 0 (right bit): only = 1 when reset = 0 and 
+// (load=1 or inc=0). 
+not1 u_not_reset(.a(reset), .y(not_reset));
+not1 u_not_load(.a(load), .y(not_load));
+not1 u_not_increment(.a(increment), .y(not_increment));
+or2 u_load_or_not_increment(.a(load), .b(not_increment), .y(load_or_not_increment));
+and2 u_bit1(.a(not_reset), .b(not_load), .y(which_output[1]));
+and2 u_bit0(.a(not_reset), .b(load_or_not_increment), .y(which_output[0]));
+
+// incremented value
+inc16 u_out_plus_one(.a(out), .sum(out_plus_one));
+
+mux4way16 u_mux(
+  .a(16'b0),
+  .b(in),
+  .c(out_plus_one),
+  .d(16'b1), // should never be used
+  .sel(which_output), 
+  .y(input_to_register));
+
+register16 u_reg(
+  .clock(clock), 
+  .in(input_to_register),
+  .load(load_register),
+  .out(out));
+endmodule  // counter16
