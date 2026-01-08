@@ -16,7 +16,8 @@ if [ "$#" -eq 0 ]; then
 fi
 
 
-VERILOG_BASENAME="${1##*/}"; VERILOG_BASENAME="${base%.*}"
+VERILOG_BASENAME="${1##*/}"; 
+VERILOG_BASENAME="${VERILOG_BASENAME%.*}"
 VERILOG_FILES=$@
 export SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT="${SCRIPT_DIR%/*}"
@@ -31,7 +32,7 @@ nextpnr-ice40 --up5k --package sg48 --json ${TEMP_DIR}/${VERILOG_BASENAME}.json 
 --pcf ${REPO_ROOT}/icebreaker.pcf --asc ${TEMP_DIR}/${VERILOG_BASENAME}.asc && \
 
 echo "Packing with icepack" && \
-icepack ${TEMP_DIR}/${VERILOG_BASENAME}.asc ${TEMP_DIR}/${VERILOG_BASENAME}.bin
+icepack -s ${TEMP_DIR}/${VERILOG_BASENAME}.asc ${TEMP_DIR}/${VERILOG_BASENAME}.bin
 
 BITSTREAM_SIZE=$(stat -f%z ${TEMP_DIR}/${VERILOG_BASENAME}.bin)
 echo "Size of binary (bytes): ${BITSTREAM_SIZE}"
@@ -40,14 +41,15 @@ if [ "$BITSTREAM_SIZE" -ge "$BITSTREAM_SIZE_LIMIT" ]; then
   exit 1
 fi
 
-
-echo "Uploading to board with iceprog" && \
-iceprog ${TEMP_DIR}/${VERILOG_BASENAME}.bin
-
-
 if [ -n "$PAYLOAD" ]; then
   echo "Uploading payload to flash at offset ${DATA_OFFSET}" && \
-  iceprog -o ${DATA_OFFSET} "$PAYLOAD"
+  iceprog -k -o ${DATA_OFFSET} "$PAYLOAD"
 fi
 
+echo "Uploading fpga bitstream to board with iceprog" && \
+iceprog ${TEMP_DIR}/${VERILOG_BASENAME}.bin
+
+echo "Verifying bytes written to flash" && \
+iceprog -k -o 0x00100000 -R 4 ${TEMP_DIR}/readback.bin && \
+xxd ${TEMP_DIR}/readback.bin
 trap 'rm -rf "$TEMP_DIR"' EXIT
