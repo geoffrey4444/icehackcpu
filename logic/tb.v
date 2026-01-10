@@ -227,6 +227,6 @@ for (j=0; j < 2; ++j) begin
     if ((sel3 == 3'b111) & ((aaaa != 0) | (bbbb != 0) | (cccc != 0) | (dddd != 0) | (eeee != 0) | (ffff != 0) | (gggg != 000) | (hhhh != in) )) $fatal;
   end
 end
-
+$display("OK");
 end
 endmodule  // tb

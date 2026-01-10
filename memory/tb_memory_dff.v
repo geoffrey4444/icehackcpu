@@ -312,5 +312,6 @@ initial begin
     #15; 
   end
   run_clock16_inc = 0;
+  $display("OK");
 end
 endmodule  // tb

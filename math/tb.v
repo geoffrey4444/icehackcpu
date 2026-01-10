@@ -194,6 +194,6 @@ repeat (1000) begin
 
 
 end
-
+$display("OK");
 end
 endmodule  // tb

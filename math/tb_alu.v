@@ -125,6 +125,7 @@ repeat (100) begin
 
 
 end
+$display("OK");
 end
 
 endmodule  // tb

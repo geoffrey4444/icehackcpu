@@ -54,5 +54,6 @@ initial begin
   #10 if (out_for_learning != 0) $fatal;       // t=56ns : still low after another tick
   
   run_clock = 0; // we're done; stop clock updates
+  $display("OK");
 end
 endmodule  // tb_dff
