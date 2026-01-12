@@ -1,5 +1,6 @@
 import argparse
 
+
 def symbol(instruction):
     instruct_type = instruction_type(instruction)
     if instruct_type == "A_INSTRUCTION":
@@ -117,7 +118,7 @@ d_bits_from_dest_dict = {
     "MAD": "111",
     "MDA": "111",
     "DAM": "111",
-    "DMA": "111"
+    "DMA": "111",
 }
 
 j_bits_from_jump_dict = {
