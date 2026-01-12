@@ -49,13 +49,27 @@ TEMP_DIR=$(mktemp -d)
 # python.
 echo -n "assembler/assembler.py -- "
 uv run $REPO_ROOT/assembler/assembler.py $REPO_ROOT/assembler/add.asm > $TEMP_DIR/add.hack
-if diff -q $TEMP_DIR/add.hack $REPO_ROOT/assembler/add.hack; then
+if diff -B -q $TEMP_DIR/add.hack $REPO_ROOT/assembler/add.hack; then
   echo "OK"
 else
   echo "FAIL"
   echo "Diff of object code assembled from assembler/add.asm :"
   echo " "
   diff $TEMP_DIR/add.hack $REPO_ROOT/assembler/add.hack
+fi
+
+# Now test packing the file up into binary
+# Pack to binary, then use xxd, cut, sed to recover the original from the bytes
+echo -n "assembler/object_code_ascii_to_big_endian.py -- "
+uv run $REPO_ROOT/assembler/object_code_ascii_to_big_endian.py $TEMP_DIR/add.hack $TEMP_DIR/add.bin
+xxd -b -c 2 $TEMP_DIR/add.bin | cut -d " " -f 2,3 | sed "s/ //" > $TEMP_DIR/add.bin.ascii
+if diff -B -q $TEMP_DIR/add.bin.ascii $REPO_ROOT/assembler/add.hack; then
+  echo "OK"
+else
+  echo "FAIL"
+  echo "Diff of binary packed object code from assembler/add.asm :"
+  echo " "
+  diff $TEMP_DIR/add.bin.ascii $REPO_ROOT/assembler/add.hack
 fi
 
 # Clean up

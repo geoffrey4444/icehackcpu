@@ -1,6 +1,4 @@
 import argparse
-from encodings import normalize_encoding
-
 
 def symbol(instruction):
     instruct_type = instruction_type(instruction)
@@ -179,7 +177,7 @@ def main():
     )
     args = parser.parse_args()
 
-    # First, open the file and prepare a normalize_encoding
+    # First, open the file
     # list of assembly commands
     lines_to_parse = []
     with open(args.input_file, "r") as input_file:
