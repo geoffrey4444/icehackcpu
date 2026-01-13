@@ -24,8 +24,7 @@ export REPO_ROOT="${SCRIPT_DIR%/*}"
 TEMP_DIR=$(mktemp -d)
 
 echo "Compiling with yosys" && \
-yosys -p "synth_ice40 -top top -json ${TEMP_DIR}/${VERILOG_BASENAME}.json" \
-${VERILOG_FILES}
+yosys -p "read_verilog -sv ${VERILOG_FILES}; synth_ice40 -top top -json ${TEMP_DIR}/${VERILOG_BASENAME}.json"
 
 echo "Mapping with nextpnr-ice40" && \
 nextpnr-ice40 --up5k --package sg48 --json ${TEMP_DIR}/${VERILOG_BASENAME}.json \
