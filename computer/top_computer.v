@@ -37,7 +37,7 @@ localparam integer END_UART_SEND_2 = 18;
 localparam integer STOP = 19;
 
 // States for sending bits to the flash controller
-localparam [31:0] BYTES_TO_READ = 32'h4;
+localparam [31:0] BYTES_TO_READ = 32'd65536; // Read 
 
 localparam integer SENDFLASH_SELECT = 100;
 localparam integer SENDFLASH_START_SCK = 101;
@@ -95,6 +95,7 @@ reg [31:0] bytes_sent = 0;
 wire baud_clock;  // driven by u_baud_tick
 wire valid = byte_is_pending;
 wire ready;       // driven by uart_tx
+reg uart_tx_seen_busy = 1'b0;
 
 // Parts
 // RAM and ROM
@@ -364,6 +365,7 @@ always @(posedge CLK) begin
         if (ready) begin
           pending_byte <= word_read_from_spram[15:8];
           byte_is_pending <= 1;
+          uart_tx_seen_busy <= 1'b0;
         end
       end else begin
         // now have a single pending byte, wait for ready to accept
@@ -376,7 +378,9 @@ always @(posedge CLK) begin
     end
     SEND_UART: begin
       // Wait until ready shown again, meaning byte has been written
-      if (ready) begin
+      if (!ready) begin
+        uart_tx_seen_busy <= 1'b1;
+      end else if ((uart_tx_seen_busy == 1) && (ready == 1)) begin
         bytes_sent <= bytes_sent + 1;
         state <= END_UART_SEND;
       end
@@ -391,6 +395,7 @@ always @(posedge CLK) begin
         if (ready) begin
           pending_byte <= word_read_from_spram[7:0];
           byte_is_pending <= 1;
+          uart_tx_seen_busy <= 1'b0;
         end
       end else begin
         // now have a single pending byte, wait for ready to accept
@@ -403,7 +408,9 @@ always @(posedge CLK) begin
     end
     SEND_UART_2: begin
       // Wait until ready shown again, meaning byte has been written
-      if (ready) begin
+      if (!ready) begin
+        uart_tx_seen_busy <= 1'b1;
+      end else if ((uart_tx_seen_busy == 1) && (ready == 1)) begin
         bytes_sent <= bytes_sent + 1;
         state <= END_UART_SEND_2;
       end
