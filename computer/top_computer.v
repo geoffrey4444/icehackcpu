@@ -84,7 +84,7 @@ assign flash_sck_toggle = flash_reader_is_active &&
 
 // For RAM and ROM
 reg [15:0] rom_in = 16'b0;
-reg [13:0] rom_address = 14'b0;
+reg [14:0] rom_address = 15'b0;
 reg rom_load = 1'b0;
 wire [15:0] rom_out;
 
@@ -341,7 +341,7 @@ always @(posedge CLK) begin
       next_byte_completes_word <= ~next_byte_completes_word;
     end
     WRITE_WORD_TO_ROM: begin
-      rom_address <= words_read_from_flash[13:0];
+      rom_address <= words_read_from_flash[14:0];
       rom_in <= word_read_from_flash;
       rom_load <= 1'b1;
       state <= END_WRITE_WORD_TO_ROM;
