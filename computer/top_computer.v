@@ -22,11 +22,19 @@ localparam integer SEND_FLASH_ADDRESS = 6;
 localparam integer READ_FLASH_BYTE = 7;
 localparam integer END_FLASH_READ = 8;
 
-localparam integer START_UART_SEND = 9;
-localparam integer SEND_UART = 10;
-localparam integer END_UART_SEND = 11;
+localparam integer WRITE_WORD_TO_ROM = 9;
+localparam integer END_WRITE_WORD_TO_ROM = 10;
+localparam integer WAIT_TO_READ_WORD_FROM_ROM = 11;
+localparam integer READ_WORD_FROM_ROM = 12;
 
-localparam integer STOP = 12;
+localparam integer START_UART_SEND = 13;
+localparam integer SEND_UART = 14;
+localparam integer END_UART_SEND = 15;
+localparam integer START_UART_SEND_2 = 16;
+localparam integer SEND_UART_2 = 17;
+localparam integer END_UART_SEND_2 = 18;
+
+localparam integer STOP = 19;
 
 // States for sending bits to the flash controller
 localparam [31:0] BYTES_TO_READ = 32'h4;
@@ -59,8 +67,11 @@ reg [23:0] flash_offset_address = READ_OFFSET;
 reg [23:0] flash_address = 24'b0;  // reset to offset address before each use
 
 reg [7:0] byte_read_from_flash = 8'b0;
+reg [15:0] word_read_from_flash = 16'b0;
+reg [15:0] word_read_from_spram = 16'b0;
 reg [23:0] bits_sent_to_flash = 24'b0;
 reg [4:0] bits_read_from_flash = 5'b0;
+reg next_byte_completes_word = 1'b0;
 reg [31:0] bytes_read_from_flash = 32'b0;
 reg [31:0] words_read_from_flash = 32'b0;
 
@@ -71,6 +82,12 @@ assign FLASH_IO3 = 1'b1;
 assign flash_sck_toggle = flash_reader_is_active && 
                         (flash_div_counter == TICKS_PER_FLASH_CLOCK_TOGGLE - 1);
 
+// For RAM and ROM
+reg [15:0] rom_in = 16'b0;
+reg [13:0] rom_address = 14'b0;
+reg rom_load = 1'b0;
+wire [15:0] rom_out;
+
 // For UART
 reg [7:0] pending_byte = 8'b0;
 reg byte_is_pending = 0;
@@ -80,6 +97,16 @@ wire valid = byte_is_pending;
 wire ready;       // driven by uart_tx
 
 // Parts
+// RAM and ROM
+ram32k u_rom(
+  .clock(CLK),
+  .in(rom_in),
+  .load(rom_load),
+  .address(rom_address),
+  .out(rom_out)
+);
+
+// UART
 baud_tick u_baud_tick(.clock(CLK), .tick(baud_clock));
 
 uart_tx u_uart_tx(
@@ -93,6 +120,12 @@ uart_tx u_uart_tx(
 
 // Time logic
 always @(posedge CLK) begin
+  ///////////////////////////////////////////////////////////////////////////
+  // Boot code
+  //
+  // This code reads bytes from flash and loads into ROM
+  //
+  ///////////////////////////////////////////////////////////////////////////
   // Flash clock logic
   // Hold flash clock at zero when inactive (not reading bits)
   // Override these if it's a flash clock toggle this tick of CLK
@@ -225,6 +258,9 @@ always @(posedge CLK) begin
       bits_read_from_flash <= 0;
       bytes_read_from_flash <= 0;
       words_read_from_flash <= 0;
+      next_byte_completes_word <= 1'b0;
+      byte_read_from_flash <= 0;
+      word_read_from_flash <= 0;
       flash_address <= flash_offset_address;
       command_to_send <= READ_COMMAND;
       FLASH_IO0 <= READ_COMMAND[7]; // preload MSB for first read
@@ -286,6 +322,39 @@ always @(posedge CLK) begin
     END_FLASH_READ: begin
       // hold flash clock until ready to read next byte
       flash_reader_is_active <= 0;
+           
+      // If this is an even byte read, load memory and update words read
+      if (next_byte_completes_word == 1) begin
+        // big endian: this is the second byte of the pair: put low           
+        word_read_from_flash[7:0] <= byte_read_from_flash;
+        state <= WRITE_WORD_TO_ROM;
+      end else begin
+        // big endian: this is the first byte of the pair, put high
+        word_read_from_flash[15:8] <= byte_read_from_flash;  
+        // Read next byte  
+        flash_reader_is_active <= 1'b1;    
+        state <= READ_FLASH_BYTE;
+      end
+
+      bytes_read_from_flash <= bytes_read_from_flash + 1;
+      next_byte_completes_word <= ~next_byte_completes_word;
+    end
+    WRITE_WORD_TO_ROM: begin
+      rom_address <= words_read_from_flash[13:0];
+      rom_in <= word_read_from_flash;
+      rom_load <= 1'b1;
+      state <= END_WRITE_WORD_TO_ROM;
+    end
+    END_WRITE_WORD_TO_ROM: begin
+      rom_load <= 1'b0;
+      state <= WAIT_TO_READ_WORD_FROM_ROM;
+    end
+    WAIT_TO_READ_WORD_FROM_ROM: begin
+      state <= READ_WORD_FROM_ROM;
+    end
+    READ_WORD_FROM_ROM: begin
+      word_read_from_spram <= rom_out;
+      words_read_from_flash <= words_read_from_flash + 1;
       state <= START_UART_SEND;
     end
     START_UART_SEND: begin
@@ -293,7 +362,7 @@ always @(posedge CLK) begin
       // QUESTION: why ! and not ~ here?
       if (!byte_is_pending) begin
         if (ready) begin
-          pending_byte <= byte_read_from_flash;
+          pending_byte <= word_read_from_spram[15:8];
           byte_is_pending <= 1;
         end
       end else begin
@@ -313,10 +382,37 @@ always @(posedge CLK) begin
       end
     end
     END_UART_SEND: begin
+      state <= START_UART_SEND_2;
+    end
+    START_UART_SEND_2: begin
+      // If no pending byte, set pending byte until ready
+      // QUESTION: why ! and not ~ here?
+      if (!byte_is_pending) begin
+        if (ready) begin
+          pending_byte <= word_read_from_spram[7:0];
+          byte_is_pending <= 1;
+        end
+      end else begin
+        // now have a single pending byte, wait for ready to accept
+        if (ready) begin
+          // accept happens this cycle, so byte won't be pending next tick
+          byte_is_pending <= 1'b0;
+          state <= SEND_UART_2;
+        end
+      end
+    end
+    SEND_UART_2: begin
+      // Wait until ready shown again, meaning byte has been written
+      if (ready) begin
+        bytes_sent <= bytes_sent + 1;
+        state <= END_UART_SEND_2;
+      end
+    end
+    END_UART_SEND_2: begin
       if (bytes_sent == BYTES_TO_READ) begin
         state <= STOP;
       end else begin
-        // read another byte
+        // read another pair of bytes
         flash_reader_is_active <= 1;
         state <= READ_FLASH_BYTE;
       end

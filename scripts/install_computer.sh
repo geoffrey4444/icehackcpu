@@ -11,6 +11,7 @@ echo "CWD: $(pwd)"
 
 $SCRIPT_DIR/install.sh -p $PAYLOAD_FILE \
   ./computer/top_computer.v \
+  ./memory/memory_spram.v \
   ./uart/uart.v
 
 echo "Done!"
