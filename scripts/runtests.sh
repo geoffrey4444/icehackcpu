@@ -2,6 +2,10 @@
 export SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT="${SCRIPT_DIR%/*}"
 
+#echo -n "computer/tb_cpu.v -- "
+echo -n "computer/tb_cpu.v -- "
+$SCRIPT_DIR/runtest.sh $REPO_ROOT/computer/tb_cpu.v $REPO_ROOT/computer/cpu.v $REPO_ROOT/memory/memory_dff.v $REPO_ROOT/memory/dff.v $REPO_ROOT/math/alu.v $REPO_ROOT/math/add.v $REPO_ROOT/logic/gates.v
+
 # Run memory tests
 echo -n "memory/tb_memory_spram.v -- "
 $SCRIPT_DIR/runtest.sh $REPO_ROOT/memory/tb_memory_spram.v $REPO_ROOT/memory/memory_spram.v
