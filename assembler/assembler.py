@@ -213,6 +213,8 @@ def main():
         "SCREEN": 16384,
         "KBD": 24576,
         "TX": 24577,
+        "RX": 24578,
+        "UARTSTAT": 24579,
         "SP": 0,
         "LCL": 1,
         "ARG": 2,
