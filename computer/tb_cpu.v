@@ -17,6 +17,10 @@ wire write_m;
 wire [14:0] address_m;
 wire [14:0] pc;
 
+wire [15:0] out_m_latch;
+wire write_m_latch;
+wire [14:0] address_m_latch;
+
 // Parts
 cpu u_cpu(
   .clock(clock),
@@ -27,7 +31,10 @@ cpu u_cpu(
   .out_m(out_m),
   .write_m(write_m), 
   .address_m(address_m),
-  .pc(pc)
+  .pc(pc),
+  .out_m_latch(out_m_latch),
+  .write_m_latch(write_m_latch),
+  .address_m_latch(address_m_latch)
 );
 
 // Clock runs
@@ -193,6 +200,48 @@ initial begin: test
   // A/D do not change while held
   // Then release hold and verify write test
   // completed successfully
+  // 
+  // Run this program: put 123 on D, 456 on A. Then run a bunch of cycles
+  // @123
+  // D=A
+  // @456
+  // ADM=D+1
+  //
+  // Expect out_m == 125, write_m == 0, address_m = 124,
+  //        out_m_latch == 124, write_m_latch == 1, address_m_latch == 456
+  hold = 0;
+  instruction = 16'b0000000001111011;
+  step();
+  hold = 1;
+  step();
+
+  hold = 0;
+  instruction = 16'b1110110000010000;
+  step();
+  hold = 1;
+  step();
+
+  hold = 0;
+  instruction = 16'b0000000111001000;
+  step();
+  hold = 1;
+  step();
+
+  hold = 0;
+  instruction = 16'b1110011111111000;
+  step();
+  hold = 1;
+  step();
+  repeat (100) begin
+    step();
+  end
+  if (write_m !== 1'b0) $fatal;
+  if (write_m_latch !== 1'b1) $fatal;
+  if (address_m !== 15'd124) $fatal;
+  if (address_m_latch !== 15'd456) $fatal;
+  if (out_m_latch !== 16'd124) $fatal;
+  if (out_m !== 16'd125) $fatal; // it reflects the instruction D+1 on 124
+
 
   $display("OK");
   $finish;
