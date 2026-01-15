@@ -2,7 +2,8 @@
 
 module top(
   input wire CLK,             // System clock (12 MHz)
-  input wire FLASH_IO1,       // Receive bits from flash storage
+  input wire FLASH_IO1,       // Receive bits from flash storage,
+  input wire BTN1,            // Button will control reset on cpu
   output reg FLASH_SCK,       // Clock for flash storage
   output reg FLASH_SSB,       // Set low to start a flash conversation
   output reg FLASH_IO0,       // Send bits to flash storage
@@ -27,6 +28,7 @@ localparam integer END_WRITE_WORD_TO_ROM = 10;
 localparam integer WAIT_TO_READ_WORD_FROM_ROM = 11;
 localparam integer READ_WORD_FROM_ROM = 12;
 
+localparam DEBUG_DUMP_ROM = 1'b0;
 localparam integer START_UART_SEND = 13;
 localparam integer SEND_UART = 14;
 localparam integer END_UART_SEND = 15;
@@ -34,7 +36,16 @@ localparam integer START_UART_SEND_2 = 16;
 localparam integer SEND_UART_2 = 17;
 localparam integer END_UART_SEND_2 = 18;
 
-localparam integer STOP = 19;
+localparam integer START_CPU_LOOP = 19;
+localparam integer START_NEXT_CPU_LOOP_ROUND = 20;
+localparam integer SET_INSTRUCTION_FROM_ROM = 21;
+localparam integer SET_INM_FROM_RAM = 22;
+localparam integer SET_CPU_RUN = 23;
+localparam integer EXECUTE_CPU_CYCLE = 24;
+localparam integer GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION = 25;
+localparam integer START_UART_LOOP_SEND = 26;
+localparam integer SEND_UART_LOOP = 27;
+localparam integer END_UART_LOOP = 28;
 
 // States for sending bits to the flash controller
 localparam [31:0] BYTES_TO_READ = 32'd65536; // Read 
@@ -50,6 +61,9 @@ localparam [7:0] TICKS_TO_WAIT_AFTER_RESET = 400;
 localparam [7:0] READ_COMMAND = 8'h3;
 localparam [23:0] READ_OFFSET = 24'h100000;
 localparam integer TICKS_PER_FLASH_CLOCK_TOGGLE = 8;
+
+// Other constants
+localparam TX_ADDRESS = 15'd24577;
 
 // Wires and registers
 reg [15:0] state = START;
@@ -82,11 +96,17 @@ assign FLASH_IO3 = 1'b1;
 assign flash_sck_toggle = flash_reader_is_active && 
                         (flash_div_counter == TICKS_PER_FLASH_CLOCK_TOGGLE - 1);
 
-// For RAM and ROM
+// For ROM
 reg [15:0] rom_in = 16'b0;
 reg [14:0] rom_address = 15'b0;
 reg rom_load = 1'b0;
 wire [15:0] rom_out;
+
+// For RAM
+reg [15:0] ram_in = 16'b0;
+reg [14:0] ram_address = 15'b0;
+reg ram_load = 1'b0;
+wire [15:0] ram_out;
 
 // For UART
 reg [7:0] pending_byte = 8'b0;
@@ -97,6 +117,22 @@ wire valid = byte_is_pending;
 wire ready;       // driven by uart_tx
 reg uart_tx_seen_busy = 1'b0;
 
+// For CPU
+reg [15:0] in_m;
+reg [15:0] instruction;
+reg [15:0] out_m;
+reg write_m;
+reg [14:0] address_m;
+reg [14:0] pc;
+
+reg write_m_q;
+reg [14:0] address_m_q;
+
+reg hold;
+
+wire reset;
+assign reset = BTN1;
+
 // Parts
 // RAM and ROM
 ram32k u_rom(
@@ -106,6 +142,28 @@ ram32k u_rom(
   .address(rom_address),
   .out(rom_out)
 );
+
+cpu u_cpu(
+  .clock(CLK),
+  .in_m(in_m),
+  .instruction(instruction),
+  .reset(reset),
+  .hold(hold),
+  .out_m(out_m),
+  .write_m(write_m),
+  .address_m(address_m),
+  .pc(pc)
+);
+
+ram32k u_ram(
+  .clock(CLK),
+  .in(ram_in),
+  .load(ram_load),
+  .address(ram_address),
+  .out(ram_out)
+);
+
+
 
 // UART
 baud_tick u_baud_tick(.clock(CLK), .tick(baud_clock));
@@ -156,6 +214,16 @@ always @(posedge CLK) begin
 
   case (state)
     START: begin
+      // Initialize CPU and input registers. CPU is held.
+      in_m <= 16'b0;
+      instruction <= 16'b0;
+      hold <= 1'b1; // CPU is held initially
+
+      // Initialize RAM input registers. Only CPU in main loop will load RAM.
+      ram_load <= 1'b0;
+      ram_in <= 16'b0;
+      ram_address <= 15'b0;
+
       state <= RESET_FLASH_PART_1;
     end
 
@@ -348,7 +416,19 @@ always @(posedge CLK) begin
     end
     END_WRITE_WORD_TO_ROM: begin
       rom_load <= 1'b0;
-      state <= WAIT_TO_READ_WORD_FROM_ROM;
+      if (DEBUG_DUMP_ROM) begin
+        state <= WAIT_TO_READ_WORD_FROM_ROM;
+      end else begin
+        words_read_from_flash <= words_read_from_flash + 1;
+        if (bytes_read_from_flash == BYTES_TO_READ) begin
+          // Done reading instructions, start the main CPU loop
+          state <= START_CPU_LOOP;
+        end else begin
+          // read another pair of bytes
+          flash_reader_is_active <= 1;
+          state <= READ_FLASH_BYTE;
+        end
+      end
     end
     WAIT_TO_READ_WORD_FROM_ROM: begin
       state <= READ_WORD_FROM_ROM;
@@ -358,6 +438,7 @@ always @(posedge CLK) begin
       words_read_from_flash <= words_read_from_flash + 1;
       state <= START_UART_SEND;
     end
+
     START_UART_SEND: begin
       // If no pending byte, set pending byte until ready
       // QUESTION: why ! and not ~ here?
@@ -417,16 +498,121 @@ always @(posedge CLK) begin
     end
     END_UART_SEND_2: begin
       if (bytes_sent == BYTES_TO_READ) begin
-        state <= STOP;
+        // Done reading instructions, start the main CPU loop
+        state <= START_CPU_LOOP;
       end else begin
         // read another pair of bytes
         flash_reader_is_active <= 1;
         state <= READ_FLASH_BYTE;
       end
     end
-    STOP: begin
-      FLASH_SSB <= 1'b0;
-      state <= STOP; // infinite loop in final state
+    START_CPU_LOOP: begin
+      // This state executes once, handing over control to the main
+      // loop from the boot sequence.
+      // ROM no longer writeable; default address is first instruction
+      rom_in <= 16'b0;
+      rom_load <= 1'b0;
+      rom_address <= 15'b0;  // start at instruction 0 on first run.
+
+      // First instruction should not be to read from RAM, because RAM is
+      // currently empty (nothing to read there). A and D registers are
+      // also empty, so first instruction should not involve writing to
+      // RAM, either. 
+      state <= START_NEXT_CPU_LOOP_ROUND;
+    end
+    START_NEXT_CPU_LOOP_ROUND: begin
+      // In this state, ROM inputs are set to read next instruction.
+      // ROM output (i.e, the instruction) will be valid next tick
+      // (state SET_INSTRUCTION_FROM_ROM).
+      //
+      // RAM inputs are now set to read in_m, possibly after
+      // updating its value (stored at address_m). Write (if done) valid
+      // next tick (SET_INSTRUCTION_FROM_ROM). Read (of possibly updated 
+      // value) valid tick after that at latest (SET_INM_FROM_RAM).
+      state <= SET_INSTRUCTION_FROM_ROM;
+    end
+    SET_INSTRUCTION_FROM_ROM: begin
+      // ROM output now contains the next instruction.
+      instruction <= rom_out;
+      state <= SET_INM_FROM_RAM;
+    end
+    SET_INM_FROM_RAM: begin
+      // ram_out now contains the value of RAM at address_m.
+      in_m <= ram_out;
+      state <= SET_CPU_RUN;
+    end
+    SET_CPU_RUN: begin
+      // All CPU inputs now valid. 
+      // Lift hold; hold will be false next tick (EXECUTE_CPU_CYCLE).
+      hold <= 1'b0;
+      state <= EXECUTE_CPU_CYCLE;
+    end
+    EXECUTE_CPU_CYCLE: begin
+      // CPU inputs are valid and CPU is not held this cycle. 
+      // Execute the instruction and capture the outputs now, while CPU is
+      // running. Next cycle, CPU should be held once more.     
+      hold <= 1'b1;
+
+      // Gather updates to RAM using current (not updated values) for 
+      // write_m, out_m, address_m. RAM update happens next tick,
+      // updated value available 2 ticks from now.
+      ram_load <= write_m;
+      ram_in <= out_m;
+      ram_address <= address_m;
+
+      // Save current values of write_m and address_m to determine whether
+      // to output a byte to TX.
+      write_m_q <= write_m;
+      address_m_q <= address_m;
+
+      state <= GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION;
+    end
+    GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION: begin
+      // CPU is now held. address_m, pc updated. RAM has been updated if 
+      // the instruction updated RAM. Now get read address for next tick.
+      rom_address <= pc;
+      ram_load <= 1'b0; // just read the next address; don't edit it
+      ram_address <= address_m;     
+
+      // Are we writing to TX (15'd24577)? If so, go to START_UART_LOOP_SEND
+      // to write the byte out. Else, go back to START_NEXT_CPU_LOOP_ROUND.
+      if ((address_m_q == TX_ADDRESS) & (write_m_q == 1)) begin
+        state <= START_UART_LOOP_SEND;
+      end else begin
+        state <= START_NEXT_CPU_LOOP_ROUND;
+      end
+    end
+    START_UART_LOOP_SEND: begin
+      // If no pending byte, set pending byte until ready
+      if (!byte_is_pending) begin
+        if (ready) begin
+          // For now, just write the bottom byte of TX_ADDRESS.
+          // TX expects one byte at a time. This could be improved later on,
+          // e.g. to always or optionally write both bytes.
+          pending_byte <= ram_in[7:0];
+          byte_is_pending <= 1;
+          uart_tx_seen_busy <= 1'b0;
+        end
+      end else begin
+        // now have a single pending byte, wait for ready to accept
+        if (ready) begin
+          // accept happens this cycle, so byte won't be pending next tick
+          byte_is_pending <= 1'b0;
+          state <= SEND_UART_LOOP;
+        end
+      end
+    end
+    SEND_UART_LOOP: begin
+      // Wait until ready shown again, meaning byte has been written
+      if (!ready) begin
+        uart_tx_seen_busy <= 1'b1;
+      end else if ((uart_tx_seen_busy == 1) && (ready == 1)) begin
+        state <= END_UART_LOOP;
+      end
+    end
+    END_UART_LOOP: begin
+      // Done sending byte, back to main CPU loop
+      state <= START_NEXT_CPU_LOOP_ROUND;
     end
   endcase
 end
