@@ -9,7 +9,10 @@ module cpu(
   output wire [15:0] out_m,
   output wire write_m, 
   output wire [14:0] address_m,
-  output wire [14:0] pc
+  output wire [14:0] pc,
+  output reg [15:0] out_m_latch,
+  output reg write_m_latch,
+  output reg [14:0] address_m_latch
 );
 
 // wires and registers
@@ -206,5 +209,18 @@ alu u_alu(
   .zr(zr),
   .ng(ng)
 );
+
+// Sync up sequential logic for latching outputs for writes
+always @(posedge clock) begin
+  if (reset == 1'b1) begin
+    out_m_latch <= 16'b0;
+    write_m_latch <= 1'b0;
+    address_m_latch <= 15'b0;
+  end else if (run == 1'b1) begin
+    out_m_latch <= out;
+    write_m_latch <= write_m_requested;
+    address_m_latch <= a_register_out[14:0];
+  end
+end
 
 endmodule  // cpu

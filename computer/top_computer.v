@@ -38,14 +38,15 @@ localparam integer END_UART_SEND_2 = 18;
 
 localparam integer START_CPU_LOOP = 19;
 localparam integer START_NEXT_CPU_LOOP_ROUND = 20;
-localparam integer SET_INSTRUCTION_FROM_ROM = 21;
-localparam integer SET_INM_FROM_RAM = 22;
-localparam integer SET_CPU_RUN = 23;
-localparam integer EXECUTE_CPU_CYCLE = 24;
-localparam integer GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION = 25;
-localparam integer START_UART_LOOP_SEND = 26;
-localparam integer SEND_UART_LOOP = 27;
-localparam integer END_UART_LOOP = 28;
+localparam integer WAIT_FOR_ROM = 21;
+localparam integer WAIT_FOR_RAM = 22;
+localparam integer SET_INM_FROM_RAM = 23;
+localparam integer SET_CPU_RUN = 24;
+localparam integer EXECUTE_CPU_CYCLE = 25;
+localparam integer GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION = 26;
+localparam integer START_UART_LOOP_SEND = 27;
+localparam integer SEND_UART_LOOP = 28;
+localparam integer END_UART_LOOP = 29;
 
 // States for sending bits to the flash controller
 localparam [31:0] BYTES_TO_READ = 32'd65536; // Read 
@@ -118,20 +119,32 @@ wire ready;       // driven by uart_tx
 reg uart_tx_seen_busy = 1'b0;
 
 // For CPU
-reg [15:0] in_m;
-reg [15:0] instruction;
-reg [15:0] out_m;
-reg write_m;
-reg [14:0] address_m;
-reg [14:0] pc;
+reg [15:0] in_m = 16'h0000;
+reg [15:0] instruction = 16'h0000;
+wire [15:0] out_m;
+wire write_m;
+wire [14:0] address_m;
+wire [14:0] pc;
+wire [15:0] out_m_latch;
+wire write_m_latch;
+wire [14:0] address_m_latch;
 
-reg write_m_q;
-reg [14:0] address_m_q;
+// Start with CPU held.
+reg hold = 1'b1;
 
-reg hold;
-
+// Force a reset when BTN1 is on or at power on
+// Have a little counter that counts up to 8'hFF, and force a reset for
+// the first 255 ticks.
+reg [7:0] power_on_reset_counter = 8'd0;
+wire power_on_reset;
+assign power_on_reset = (power_on_reset_counter != 8'hFF);
+always @(posedge CLK) begin
+  if (power_on_reset_counter != 8'hFF) begin
+    power_on_reset_counter <= power_on_reset_counter + 1;
+  end
+end
 wire reset;
-assign reset = BTN1;
+assign reset = (power_on_reset | BTN1);
 
 // Parts
 // RAM and ROM
@@ -152,7 +165,10 @@ cpu u_cpu(
   .out_m(out_m),
   .write_m(write_m),
   .address_m(address_m),
-  .pc(pc)
+  .pc(pc),
+  .out_m_latch(out_m_latch),
+  .write_m_latch(write_m_latch),
+  .address_m_latch(address_m_latch)
 );
 
 ram32k u_ram(
@@ -523,17 +539,33 @@ always @(posedge CLK) begin
     START_NEXT_CPU_LOOP_ROUND: begin
       // In this state, ROM inputs are set to read next instruction.
       // ROM output (i.e, the instruction) will be valid next tick
-      // (state SET_INSTRUCTION_FROM_ROM).
+      // (state WAIT_FOR_ROM).
       //
-      // RAM inputs are now set to read in_m, possibly after
-      // updating its value (stored at address_m). Write (if done) valid
-      // next tick (SET_INSTRUCTION_FROM_ROM). Read (of possibly updated 
-      // value) valid tick after that at latest (SET_INM_FROM_RAM).
-      state <= SET_INSTRUCTION_FROM_ROM;
+      // RAM inputs are now set for writing. 
+      // Next tick (WAIT_FOR_ROM), 
+      // need to update them to read in_m;
+      // To make sure RAM is only written for one tick, make sure
+      // after this cycle, write is reset to 0.
+      ram_load <= 1'b0;
+      state <= WAIT_FOR_ROM;
     end
-    SET_INSTRUCTION_FROM_ROM: begin
-      // ROM output now contains the next instruction.
+    WAIT_FOR_ROM: begin
+      // ROM is using the new address this tick; output will contain next 
+      // instruction next tick (WAIT_FOR_RAM).
+
+      // Request updated RAM value, will request value next tick 
+      // (WAIT_FOR_RAM), value available tick after that 
+      // (SET_INM_FROM_RAM)
+      ram_address <= address_m; // updated address for new instruction
+
+      state <= WAIT_FOR_RAM;
+    end
+    WAIT_FOR_RAM: begin
+      // ROM now has the new instruction
       instruction <= rom_out;
+
+      // In this state, RAM is set to read value from address_m.
+      // Value will be available next tick (SET_INM_FROM_RAM)
       state <= SET_INM_FROM_RAM;
     end
     SET_INM_FROM_RAM: begin
@@ -550,20 +582,8 @@ always @(posedge CLK) begin
     EXECUTE_CPU_CYCLE: begin
       // CPU inputs are valid and CPU is not held this cycle. 
       // Execute the instruction and capture the outputs now, while CPU is
-      // running. Next cycle, CPU should be held once more.     
-      hold <= 1'b1;
-
-      // Gather updates to RAM using current (not updated values) for 
-      // write_m, out_m, address_m. RAM update happens next tick,
-      // updated value available 2 ticks from now.
-      ram_load <= write_m;
-      ram_in <= out_m;
-      ram_address <= address_m;
-
-      // Save current values of write_m and address_m to determine whether
-      // to output a byte to TX.
-      write_m_q <= write_m;
-      address_m_q <= address_m;
+      // running. Next cycle, CPU should be held once more.
+      hold <= 1'b1;      
 
       state <= GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION;
     end
@@ -571,25 +591,35 @@ always @(posedge CLK) begin
       // CPU is now held. address_m, pc updated. RAM has been updated if 
       // the instruction updated RAM. Now get read address for next tick.
       rom_address <= pc;
-      ram_load <= 1'b0; // just read the next address; don't edit it
-      ram_address <= address_m;     
+
+      // Ask RAM chip to do a write next tick 
+      // (START_UART_LOOP_SEND or START_NEXT_CPU_LOOP_ROUND)
+      // Written value will be available tick after that
+      // (SEND_UART_LOOP or WAIT_FOR_ROM)
+      // Use latched values for write.
+      ram_load <= write_m_latch;
+      ram_address <= address_m_latch;
+      ram_in <= out_m_latch;          
 
       // Are we writing to TX (15'd24577)? If so, go to START_UART_LOOP_SEND
       // to write the byte out. Else, go back to START_NEXT_CPU_LOOP_ROUND.
-      if ((address_m_q == TX_ADDRESS) & (write_m_q == 1)) begin
+      if ((address_m_latch == TX_ADDRESS) & (write_m_latch == 1)) begin
         state <= START_UART_LOOP_SEND;
       end else begin
         state <= START_NEXT_CPU_LOOP_ROUND;
       end
     end
     START_UART_LOOP_SEND: begin
+      // If arrived here, RAM is writing now if write_m_latch is true.
+      // Make sure ram_load is 1 for only one tick
+      ram_load <= 1'b0;
       // If no pending byte, set pending byte until ready
       if (!byte_is_pending) begin
         if (ready) begin
           // For now, just write the bottom byte of TX_ADDRESS.
           // TX expects one byte at a time. This could be improved later on,
           // e.g. to always or optionally write both bytes.
-          pending_byte <= ram_in[7:0];
+          pending_byte <= out_m_latch[7:0];
           byte_is_pending <= 1;
           uart_tx_seen_busy <= 1'b0;
         end

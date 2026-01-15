@@ -12,6 +12,12 @@ echo "CWD: $(pwd)"
 $SCRIPT_DIR/install.sh -p $PAYLOAD_FILE \
   ./computer/top_computer.v \
   ./memory/memory_spram.v \
-  ./uart/uart.v
+  ./memory/memory_dff.v \
+  ./memory/dff.v \
+  ./uart/uart.v \
+  ./computer/cpu.v \
+  ./math/alu.v \
+  ./math/add.v \
+  ./logic/gates.v
 
 echo "Done!"
