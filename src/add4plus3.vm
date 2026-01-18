@@ -1,0 +1,5 @@
+// sum 4 and 3 and put the result in the TX register
+push constant 4
+push constant 3
+add
+pop uart 0

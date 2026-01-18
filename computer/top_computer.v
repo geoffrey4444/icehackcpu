@@ -9,7 +9,7 @@ module top(
   output reg FLASH_IO0,       // Send bits to flash storage
   output wire FLASH_IO2,      // /WP unused, hold high
   output wire FLASH_IO3,      // /HOLD unused, hold high
-  output wire TX,             // Send bits to UART transmitter
+  output wire TX              // Send bits to UART transmitter
 );
 // Top-level state machine states
 localparam integer START = 0;

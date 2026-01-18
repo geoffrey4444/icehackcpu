@@ -94,13 +94,13 @@ def get_base_address_for_push_pop(segment, index, file_stem):
 
 
 def write_pushpop(command, segment, index, file_stem):
-    if (segment == "constant") and (index > 32767):
+    if (segment == "constant") and (int(index) > 65535):
         print(f"Error: cannot push constant {index} because it is larger than 32767")
         exit(1)
-    if index < 0:
+    if int(index) < 0:
         print(f"Error: {index} is negative")
         exit(1)
-    if (segment == "pointer" and index > 1) or (segment == "temp" and index > 7):
+    if (segment == "pointer" and int(index) > 1) or (segment == "temp" and int(index) > 7):
         print(f"Error: cannot push {segment} {index} because index is out of range")
         exit(1)
     if segment == "uart" and index > 2:
@@ -363,6 +363,22 @@ def write_prolog():
 @256
 D=A
 @SP
+M=D
+@3000
+D=A
+@LCL
+M=D
+@3010
+D=A
+@ARG
+M=D
+@3020
+D=A
+@THIS
+M=D
+@3030
+D=A
+@THAT
 M=D
 """
 

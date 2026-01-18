@@ -2,7 +2,13 @@
 export SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export REPO_ROOT="${SCRIPT_DIR%/*}"
 
-#echo -n "computer/tb_cpu.v -- "
+# Test computer and translator/assembler
+echo -n "computer/tb_computer.v -- "
+uv run python $REPO_ROOT/vm/translator.py $REPO_ROOT/computer/test_vm.vm > $REPO_ROOT/computer/test_vm.asm
+uv run python $REPO_ROOT/assembler/assembler.py $REPO_ROOT/computer/test_vm.asm > $REPO_ROOT/computer/test_vm.hack
+$SCRIPT_DIR/runtest.sh $REPO_ROOT/computer/tb_computer.v $REPO_ROOT/computer/top_computer.v $REPO_ROOT/memory/memory_spram.v $REPO_ROOT/memory/memory_dff.v $REPO_ROOT/memory/dff.v $REPO_ROOT/uart/uart.v $REPO_ROOT/computer/cpu.v $REPO_ROOT/math/alu.v $REPO_ROOT/math/add.v $REPO_ROOT/logic/gates.v
+
+# Run cpu test
 echo -n "computer/tb_cpu.v -- "
 $SCRIPT_DIR/runtest.sh $REPO_ROOT/computer/tb_cpu.v $REPO_ROOT/computer/cpu.v $REPO_ROOT/memory/memory_dff.v $REPO_ROOT/memory/dff.v $REPO_ROOT/math/alu.v $REPO_ROOT/math/add.v $REPO_ROOT/logic/gates.v
 

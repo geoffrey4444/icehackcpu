@@ -1,3 +1,5 @@
 tmp/
 .pyenv/
 .DS_Store
+computer/test_vm.asm
+computer/test_vm.hack
