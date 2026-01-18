@@ -16,17 +16,6 @@ segments = [
     "temp",
     "uart",
 ]
-base_address_of_segments = {
-    "argument": 2,
-    "local": 1,
-    "this": 3,
-    "that": 4,
-    "pointer": 3,
-    "temp": 5,
-    "static": 16,
-    "uart": 24577,
-    "constant": 0,
-}
 
 
 # comparison_type should be from comparison_types
@@ -75,66 +64,95 @@ def push_result_to_stack():
 @SP
 M=M+1
 """
+
+
 # TODO: Fix push/pop should use the standard pattern...my version
 # seems to be correct but not the "clean" way that's easier to read...
 # this is just for the local/argument/this/that segments...
 # and I think I could get away with only R13, not R13 and R14, with this fix...
 
+base_address_of_segments = {
+    "argument": "ARG",
+    "local": "LCL",
+    "this": "THIS",
+    "that": "THAT",
+    "pointer": "THIS",
+    "temp": "R5",
+    "uart": "UART",
+}
+
+
 # Get the address to push or pop to. For most segments, the address
 # is simply the base segment + the index. But for static variables,
 # the address is actually given by a label.
-def get_address_for_push_pop(segment, index, file_stem):
+def get_base_address_for_push_pop(segment, index, file_stem):
     if segment == "static":
         return get_static_label(file_stem, index)
-    elif segment in ["local", "argument", "this", "that"]:
-        base_address = base_address_of_segments[segment]
-        return f"{int(base_address)}"
     else:
         base_address = base_address_of_segments[segment]
-        return f"{int(base_address) + int(index)}"
+        return f"{base_address}"
 
 
-def write_pushpop(command, segment, index, file_stem):
+def write_pushpop(command, segment, index, file_stem):    
+    if ((segment == "constant") and (index > 32767)):
+      print(f"Error: cannot push constant {index} because it is larger than 32767")
+      exit(1)
+    if index < 0:
+      print(f"Error: {index} is negative")
+      exit(1)
+    if ((segment == "pointer" and index > 1) or (segment == "temp" and index > 7)):
+      print(f"Error: cannot push {segment} {index} because index is out of range")
+      exit(1)
+    if ((segment == "uart" and index > 2)):
+      print(f"Error: cannot push {segment} {index} because index is out of range")
+      exit(1)
+    result = f"// {command} {segment} {index}\n"
     if command == "push":
-        return f"""//push {segment} {index}
-@{get_address_for_push_pop(segment, index, file_stem)}
-{"D=M" if segment in ["local", "argument", "this", "that"] else ""}
-{f"@{index}" if segment in ["local", "argument", "this", "that"] else ""}
-{"A=D+A" if segment in ["local", "argument", "this", "that"] else ""}
-{"D=A" if segment == "constant" else "D=M"}
+        if segment != "static":
+          result += f"@{index}\nD=A\n"
+        if segment != "constant":
+            result += f"@{get_base_address_for_push_pop(segment, index, file_stem)}\n"
+            if segment in ["local", "argument", "this", "that"]:
+                result += f"A=M\n"
+            if segment != "static":
+                result += f"A=D+A\n"
+            result += f"D=M\n"
+        return (
+            result
+            + """
 @SP
 A=M
 M=D
 @SP
 M=M+1
 """
+        )
     elif command == "pop":
         if segment == "constant":
             print(f"Error: cannot pop to constant segment")
             exit(1)
-        return f"""//pop {segment} {index}
+        if segment != "static":
+            result += f"@{index}\nD=A\n"
+        result += f"@{get_base_address_for_push_pop(segment, index, file_stem)}\n"
+        if segment in ["local", "argument", "this", "that"]:
+            result += f"A=M\n"
+        if segment != "static":
+            result += f"A=D+A\n"
+        result += f"D=A\n@R13\nM=D\n"
+        return (
+            result
+            + f"""
 @SP
 AM=M-1
 D=M
-
-{f"@R13" if segment in ["local", "argument", "this", "that"] else ""}
-{f"M=D" if segment in ["local", "argument", "this", "that"] else ""}
-
-@{get_address_for_push_pop(segment, index, file_stem)}
-
-{"D=M" if segment in ["local", "argument", "this", "that"] else ""}
-{f"@{index}" if segment in ["local", "argument", "this", "that"] else ""}
-{"D=D+A" if segment in ["local", "argument", "this", "that"] else ""}
-{f"@R14" if segment in ["local", "argument", "this", "that"] else ""}
-{f"M=D" if segment in ["local", "argument", "this", "that"] else ""}
-
-{"@R13" if segment in ["local", "argument", "this", "that"] else ""}
-{f"D=M" if segment in ["local", "argument", "this", "that"] else ""} 
-{f"@R14" if segment in ["local", "argument", "this", "that"] else ""}
-{f"A=M" if segment in ["local", "argument", "this", "that"] else ""}
-
+@R13
+A=M
 M=D
 """
+        )
+    else:
+        print(f"Error: unknown command {command}")
+        exit(1)
 
 
 def write_arithmetic(command, file_stem, counter):

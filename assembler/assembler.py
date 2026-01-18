@@ -213,6 +213,7 @@ def main():
         "R15": 15,
         "SCREEN": 16384,
         "KBD": 24576,
+        "UART": 24577,
         "TX": 24577,
         "RX": 24578,
         "UARTSTAT": 24579,
@@ -221,6 +222,7 @@ def main():
         "ARG": 2,
         "THIS": 3,
         "THAT": 4,
+        "TEMP": 5,
     }
     address_of_next_free_ram_for_variable = 16
     object_code = ""
