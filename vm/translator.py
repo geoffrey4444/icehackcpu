@@ -1,23 +1,49 @@
 import argparse
 from pathlib import Path
 
-command_types = ["C_ARITHMETIC", "C_PUSH", "C_POP", "C_LABEL", "C_GOTO", "C_IF", "C_FUNCTION", "C_RETURN", "C_CALL"]
 arithmetic_commands = ["add", "sub", "neg", "eq", "gt", "lt", "and", "or", "not"]
+pushpop_commands = ["push", "pop"]
 comparison_types = ["EQ", "GT", "LT"]
 true_or_end = ["TRUE", "END"]
+segments = [
+    "argument",
+    "local",
+    "static",
+    "constant",
+    "this",
+    "that",
+    "pointer",
+    "temp",
+    "uart",
+]
+base_address_of_segments = {
+    "argument": 2,
+    "local": 1,
+    "this": 3,
+    "that": 4,
+    "pointer": 3,
+    "temp": 5,
+    "static": 16,
+    "uart": 24577,
+    "constant": 0,
+}
+
 
 # comparison_type should be from comparison_types
-# this_label_true_or_end should be "TRUE" or "END" 
+# this_label_true_or_end should be "TRUE" or "END"
 def get_comparison_label(file_stem, counter, comparison_type, this_label_true_or_end):
-  return f"{file_stem}${comparison_type}_{this_label_true_or_end}.{counter}"
+    return f"{file_stem}${comparison_type}_{this_label_true_or_end}.{counter}"
+
 
 def get_flow_label(current_func, label_name):
-  return f"${current_func}${label_name}"
+    return f"${current_func}${label_name}"
+
 
 def get_static_label(file_stem, counter):
-  return f"{file_stem}.{counter}"
+    return f"{file_stem}.{counter}"
 
-# Pop two objects from the stack. First popped (second operand, y) is in D, 
+
+# Pop two objects from the stack. First popped (second operand, y) is in D,
 # second popped (first operand, x) is available as M.
 # Note: if using this, don't change A before pushing.
 # SP -= 1
@@ -34,13 +60,15 @@ D=M
 AM=M-1
 """
 
+
 # Push result onto stack after doing math on result of popping two objects.
-# Current stack pointer is assumed to be in A.
+# Current stack pointer is assumed to be in A, and result should already
+# be written at the current stack pointer address. This just increments
+# the stack pointer.
 # Note: if using this, don't have changed A before calling this to push
 # the result back to the stack.
-# D=A
 # @SP
-# M=D+1
+# M=M+1
 def push_result_to_stack():
     return """
 // push result to stack
@@ -48,24 +76,74 @@ def push_result_to_stack():
 M=M+1
 """
 
-def write_arithmetic(command, file_stem, counter):
-  if command not in arithmetic_commands:
-    print(f"Error: arithmetic command {command} unknown")
-    exit(1)
 
-  result = ""
-  match command:
-    # pop top two objects from stack, add them, then push
-    # pop SP-=1, then returns object at RAM[SP]
-    # push writes to RAM[SP], then SP+=1
-    case "add":
-      return "// add\n" + pop_two_objects_from_stack() + "M=D+M\n" + push_result_to_stack()
-    case "sub":
-      return "// sub\n" + pop_two_objects_from_stack() + "M=M-D\n" + push_result_to_stack()
-    case "neg":
-      return "// neg\n@SP\nA=M\n""M=-M\n"
-    case "eq":
-      return "// eq\n" + pop_two_objects_from_stack() + f"""
+# Get the address to push or pop to. For most segments, the address
+# is simply the base segment + the index. But for static variables,
+# the address is actually given by a label.
+def get_address_for_push_pop(segment, index, file_stem):    
+    if segment == "static":
+        return get_static_label(file_stem, index)
+    else:
+        base_address = base_address_of_segments[segment]
+        return f"{int(base_address) + int(index)}"
+
+
+def write_pushpop(command, segment, index, file_stem):
+    if command == "push":
+        return f"""//push {segment} {index}
+@{get_address_for_push_pop(segment, index, file_stem)}
+{"D=A" if segment == "constant" else"D=M"}
+@SP
+A=M
+M=D
+@SP
+M=M+1
+"""
+    elif command == "pop":
+        if segment == "constant":
+            print(f"Error: cannot pop to constant segment")
+            exit(1)
+        return f"""//pop {segment} {index}
+@SP
+AM=M-1
+D=M
+@{get_address_for_push_pop(segment, index, file_stem)}
+M=D
+@SP
+"""
+
+
+def write_arithmetic(command, file_stem, counter):
+    if command not in arithmetic_commands:
+        print(f"Error: arithmetic command {command} unknown")
+        exit(1)
+
+    result = ""
+    match command:
+        # pop top two objects from stack, add them, then push
+        # pop SP-=1, then returns object at RAM[SP]
+        # push writes to RAM[SP], then SP+=1
+        case "add":
+            return (
+                "// add\n"
+                + pop_two_objects_from_stack()
+                + "M=D+M\n"
+                + push_result_to_stack()
+            )
+        case "sub":
+            return (
+                "// sub\n"
+                + pop_two_objects_from_stack()
+                + "M=M-D\n"
+                + push_result_to_stack()
+            )
+        case "neg":
+            return "// neg\n@SP\nA=M\n" "M=-M\n"
+        case "eq":
+            return (
+                "// eq\n"
+                + pop_two_objects_from_stack()
+                + f"""
 D=M-D
 @{file_stem}$EQ_TRUE.{counter}
 D;JEQ
@@ -82,9 +160,12 @@ M=-1
 @SP
 M=M+1
 """
-      + push_result_to_stack()
-    case "gt":
-      return "// gt\n" + f"""
+            )
+            +push_result_to_stack()
+        case "gt":
+            return (
+                "// gt\n"
+                + f"""
 // pop Y into R13
 @SP
 AM=M-1
@@ -147,8 +228,11 @@ M=-1
 @SP
 M=M+1
 """
-    case "lt":
-      return "// lt\n" + f"""
+            )
+        case "lt":
+            return (
+                "// lt\n"
+                + f"""
 // pop Y into R13
 @SP
 AM=M-1
@@ -211,15 +295,42 @@ M=-1
 @SP
 M=M+1
 """
-    case "and":
-      return "// and\n" + pop_two_objects_from_stack() + "M=D&M\n" + push_result_to_stack()
-    case "or":
-      return "// or\n" + pop_two_objects_from_stack() + "M=D|M\n" + push_result_to_stack()
-    case "not":
-      return "// not\n@SP\nA=M\nM=!M\n"
+            )
+        case "and":
+            return (
+                "// and\n"
+                + pop_two_objects_from_stack()
+                + "M=D&M\n"
+                + push_result_to_stack()
+            )
+        case "or":
+            return (
+                "// or\n"
+                + pop_two_objects_from_stack()
+                + "M=D|M\n"
+                + push_result_to_stack()
+            )
+        case "not":
+            return "// not\n@SP\nA=M\nM=!M\n"
 
-def write_pushpop(command, segment, index):
-    return ""
+def write_prolog():
+  return """
+// prolog
+// set SP to 256, start of stack (stack grows up to higher addresses)
+@256
+D=A
+@SP
+M=D
+"""
+
+def write_epilog():
+  return """
+// epilog
+// infinite loop when finished
+(INFINITE_LOOP_PROGRAM_COMPLETE)
+@INFINITE_LOOP_PROGRAM_COMPLETE
+0;JMP
+"""
 
 def main():
     parser = argparse.ArgumentParser()
@@ -239,18 +350,16 @@ def main():
             if line.startswith("//") or line == "":
                 continue
             # convert tabs to spaces and remove newline characters
-            lines_to_parse.append(
-                line.replace("\t", " ").replace("\n", "")
-            )         
+            lines_to_parse.append(line.replace("\t", " ").replace("\n", ""))
 
     # Globals for label generation
     # Variables for label generation
-        
+
     current_file_stem = Path(__file__).stem
     current_function = ""
     label_counter = 0
 
-    assembly_code = ""    
+    assembly_code = write_prolog()
 
     # Goal: generate hack assembly code corresponding to each line of vack
     # virtual machine (vm) code. Must support the following instructions:
@@ -271,7 +380,7 @@ def main():
     #  local      function's local variables
     #  static     class variable associated with no particular object
     #  constant   (virtual ... just implement as literals)
-    #  this       
+    #  this
     #  that
     #  pointer
     #  tmp
@@ -285,7 +394,7 @@ def main():
     #    3 THIS
     #    4 THAT
     # 5-12 temp
-    #13-15 misc variables
+    # 13-15 misc variables
     #  16-255 static variables
     #  256-2047 stack
     #  24577 UART
@@ -293,8 +402,21 @@ def main():
     #    UART[1] RX
     #    UART[2] UARTSTAT (maybe omit??)
     for line in lines_to_parse:
-        print(line)
+        # figure out type of command
+        command_words = line.split(" ")
+        command_name = command_words[0].lower()
+        if command_name in pushpop_commands:
+            segment = command_words[1]
+            index = command_words[2]
+            assembly_code += write_pushpop(command_name, segment, index, current_file_stem)
+        elif command_name in arithmetic_commands:
+          assembly_code += write_arithmetic(command_name, current_file_stem, label_counter)
+          label_counter += 1
+        else:
+          print(f"Error: unknown command {command_name}")
+          exit(1)
 
+    assembly_code += write_epilog()
     print(assembly_code)
 
 
