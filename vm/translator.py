@@ -93,23 +93,23 @@ def get_base_address_for_push_pop(segment, index, file_stem):
         return f"{base_address}"
 
 
-def write_pushpop(command, segment, index, file_stem):    
-    if ((segment == "constant") and (index > 32767)):
-      print(f"Error: cannot push constant {index} because it is larger than 32767")
-      exit(1)
+def write_pushpop(command, segment, index, file_stem):
+    if (segment == "constant") and (index > 32767):
+        print(f"Error: cannot push constant {index} because it is larger than 32767")
+        exit(1)
     if index < 0:
-      print(f"Error: {index} is negative")
-      exit(1)
-    if ((segment == "pointer" and index > 1) or (segment == "temp" and index > 7)):
-      print(f"Error: cannot push {segment} {index} because index is out of range")
-      exit(1)
-    if ((segment == "uart" and index > 2)):
-      print(f"Error: cannot push {segment} {index} because index is out of range")
-      exit(1)
+        print(f"Error: {index} is negative")
+        exit(1)
+    if (segment == "pointer" and index > 1) or (segment == "temp" and index > 7):
+        print(f"Error: cannot push {segment} {index} because index is out of range")
+        exit(1)
+    if segment == "uart" and index > 2:
+        print(f"Error: cannot push {segment} {index} because index is out of range")
+        exit(1)
     result = f"// {command} {segment} {index}\n"
     if command == "push":
         if segment != "static":
-          result += f"@{index}\nD=A\n"
+            result += f"@{index}\nD=A\n"
         if segment != "constant":
             result += f"@{get_base_address_for_push_pop(segment, index, file_stem)}\n"
             if segment in ["local", "argument", "this", "that"]:
