@@ -75,14 +75,20 @@ def push_result_to_stack():
 @SP
 M=M+1
 """
-
+# TODO: Fix push/pop should use the standard pattern...my version
+# seems to be correct but not the "clean" way that's easier to read...
+# this is just for the local/argument/this/that segments...
+# and I think I could get away with only R13, not R13 and R14, with this fix...
 
 # Get the address to push or pop to. For most segments, the address
 # is simply the base segment + the index. But for static variables,
 # the address is actually given by a label.
-def get_address_for_push_pop(segment, index, file_stem):    
+def get_address_for_push_pop(segment, index, file_stem):
     if segment == "static":
         return get_static_label(file_stem, index)
+    elif segment in ["local", "argument", "this", "that"]:
+        base_address = base_address_of_segments[segment]
+        return f"{int(base_address)}"
     else:
         base_address = base_address_of_segments[segment]
         return f"{int(base_address) + int(index)}"
@@ -92,7 +98,10 @@ def write_pushpop(command, segment, index, file_stem):
     if command == "push":
         return f"""//push {segment} {index}
 @{get_address_for_push_pop(segment, index, file_stem)}
-{"D=A" if segment == "constant" else"D=M"}
+{"D=M" if segment in ["local", "argument", "this", "that"] else ""}
+{f"@{index}" if segment in ["local", "argument", "this", "that"] else ""}
+{"A=D+A" if segment in ["local", "argument", "this", "that"] else ""}
+{"D=A" if segment == "constant" else "D=M"}
 @SP
 A=M
 M=D
@@ -107,9 +116,24 @@ M=M+1
 @SP
 AM=M-1
 D=M
+
+{f"@R13" if segment in ["local", "argument", "this", "that"] else ""}
+{f"M=D" if segment in ["local", "argument", "this", "that"] else ""}
+
 @{get_address_for_push_pop(segment, index, file_stem)}
+
+{"D=M" if segment in ["local", "argument", "this", "that"] else ""}
+{f"@{index}" if segment in ["local", "argument", "this", "that"] else ""}
+{"D=D+A" if segment in ["local", "argument", "this", "that"] else ""}
+{f"@R14" if segment in ["local", "argument", "this", "that"] else ""}
+{f"M=D" if segment in ["local", "argument", "this", "that"] else ""}
+
+{"@R13" if segment in ["local", "argument", "this", "that"] else ""}
+{f"D=M" if segment in ["local", "argument", "this", "that"] else ""} 
+{f"@R14" if segment in ["local", "argument", "this", "that"] else ""}
+{f"A=M" if segment in ["local", "argument", "this", "that"] else ""}
+
 M=D
-@SP
 """
 
 
@@ -138,7 +162,7 @@ def write_arithmetic(command, file_stem, counter):
                 + push_result_to_stack()
             )
         case "neg":
-            return "// neg\n@SP\nA=M\n" "M=-M\n"
+            return "// neg\n@SP\nA=M-1\n" "M=-M\n"
         case "eq":
             return (
                 "// eq\n"
@@ -161,7 +185,7 @@ M=-1
 M=M+1
 """
             )
-            +push_result_to_stack()
+
         case "gt":
             return (
                 "// gt\n"
@@ -311,10 +335,11 @@ M=M+1
                 + push_result_to_stack()
             )
         case "not":
-            return "// not\n@SP\nA=M\nM=!M\n"
+            return "// not\n@SP\nA=M-1\nM=!M\n"
+
 
 def write_prolog():
-  return """
+    return """
 // prolog
 // set SP to 256, start of stack (stack grows up to higher addresses)
 @256
@@ -323,14 +348,16 @@ D=A
 M=D
 """
 
+
 def write_epilog():
-  return """
+    return """
 // epilog
 // infinite loop when finished
 (INFINITE_LOOP_PROGRAM_COMPLETE)
 @INFINITE_LOOP_PROGRAM_COMPLETE
 0;JMP
 """
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -347,7 +374,8 @@ def main():
             # remove leading and trailing whitespace
             line = line.strip()
             # ignore commented lines and empty lines, but add other lines for parsing
-            if line.startswith("//") or line == "":
+            line = line.split("//", 1)[0].strip()
+            if not line:
                 continue
             # convert tabs to spaces and remove newline characters
             lines_to_parse.append(line.replace("\t", " ").replace("\n", ""))
@@ -355,7 +383,7 @@ def main():
     # Globals for label generation
     # Variables for label generation
 
-    current_file_stem = Path(__file__).stem
+    current_file_stem = Path(args.input_file).stem
     current_function = ""
     label_counter = 0
 
@@ -403,18 +431,22 @@ def main():
     #    UART[2] UARTSTAT (maybe omit??)
     for line in lines_to_parse:
         # figure out type of command
-        command_words = line.split(" ")
+        command_words = line.split()
         command_name = command_words[0].lower()
         if command_name in pushpop_commands:
-            segment = command_words[1]
+            segment = command_words[1].lower()
             index = command_words[2]
-            assembly_code += write_pushpop(command_name, segment, index, current_file_stem)
+            assembly_code += write_pushpop(
+                command_name, segment, index, current_file_stem
+            )
         elif command_name in arithmetic_commands:
-          assembly_code += write_arithmetic(command_name, current_file_stem, label_counter)
-          label_counter += 1
+            assembly_code += write_arithmetic(
+                command_name, current_file_stem, label_counter
+            )
+            label_counter += 1
         else:
-          print(f"Error: unknown command {command_name}")
-          exit(1)
+            print(f"Error: unknown command {command_name}")
+            exit(1)
 
     assembly_code += write_epilog()
     print(assembly_code)

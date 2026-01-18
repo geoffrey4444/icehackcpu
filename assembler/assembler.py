@@ -186,7 +186,8 @@ def main():
             # remove leading and trailing whitespace
             line = line.strip()
             # ignore commented lines and empty lines, but add other lines for parsing
-            if line.startswith("//") or line == "":
+            line = line.split("//", 1)[0].strip()
+            if not line:
                 continue
             # remove all spaces and tabs and newlines
             lines_to_parse.append(
