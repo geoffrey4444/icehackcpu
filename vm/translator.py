@@ -518,6 +518,25 @@ A=M
     
     return result
 
+def write_label(label_name, current_function):
+    label = f"{current_function}${label_name}" if current_function else label_name
+    return f"// label {label_name}\n({label})\n"
+
+def write_goto(label_name, current_function):
+    label = f"{current_function}${label_name}" if current_function else label_name
+    return f"// goto {label_name}\n@{label}\n0;JMP\n"
+
+def write_if_goto(label_name, current_function):
+    label = f"{current_function}${label_name}" if current_function else label_name
+    return f"""
+// if-goto {label_name}
+@SP
+AM=M-1
+D=M
+@{label}
+D;JNE
+"""
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -619,6 +638,15 @@ def main():
                 call_counter += 1
             elif command_name == "return":
                 assembly_code += write_return()
+            elif command_name == "label":
+                label_name = command_words[1]
+                assembly_code += write_label(label_name, current_function)
+            elif command_name == "goto":
+                label_name = command_words[1]
+                assembly_code += write_goto(label_name, current_function)
+            elif command_name == "if-goto":
+                label_name = command_words[1]
+                assembly_code += write_if_goto(label_name, current_function)
             else:
                 print(f"Error: unknown command {command_name}")
                 exit(1)
