@@ -459,62 +459,71 @@ M=D
 def write_return():
     # frame = LCL (R13)
     # return_address = *(frame - 5) (R14)
-    # *arg = pop() (overwrite first input parameter
-    # SP = ARG+1 (stack pointer is right after returned result
-    # THAT = *(frame - 4)
-    # THIS = *(frame - 3)
-    # ARG = *(frame - 2)
-    # LCL = *(frame - 1)
+    # *arg = pop() (overwrite first input parameter with function result)
+    # SP = ARG+1 (stack pointer is right after returned result)
+    # THAT = *(frame - 1)
+    # THIS = *(frame - 2)
+    # ARG = *(frame - 3)
+    # LCL = *(frame - 4)
     # goto return_address
 
     result = """
+// frame = LCL (R13)
 @LCL
 D=M
 @R13
 M=D
+// return_address = *(frame - 5) (R14)
 @5
 A=D-A
 D=M
 @R14
 M=D
+// pop return value into *(ARG[0])
 @SP
 AM=M-1
 D=M
 @ARG
 A=M
 M=D
+// SP = ARG+1 (stack pointer is right after returned result)
 @ARG
 D=M+1
 @SP
 M=D
-@R13
-D=M
-@4
-A=D-A
-D=M
-@THAT
-M=D
-@R13
-D=M
-@3
-A=D-A
-D=M
-@THIS
-M=D
-@R13
-D=M
-@2
-A=D-A
-D=M
-@ARG
-M=D
+// THAT = *(frame - 1)
 @R13
 D=M
 @1
 A=D-A
 D=M
+@THAT
+M=D
+// THIS = *(frame - 2)
+@R13
+D=M
+@2
+A=D-A
+D=M
+@THIS
+M=D
+// ARG = *(frame - 3)
+@R13
+D=M
+@3
+A=D-A
+D=M
+@ARG
+M=D
+// LCL = *(frame - 4)
+@R13
+D=M
+@4
+A=D-A
+D=M
 @LCL
 M=D
+// goto return_address
 @R14
 A=M
 0;JMP

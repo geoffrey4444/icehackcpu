@@ -3,3 +3,5 @@ tmp/
 .DS_Store
 computer/test_vm.asm
 computer/test_vm.hack
+computer/test_vm_functions.asm
+computer/test_vm_functions.hack

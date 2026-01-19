@@ -1,0 +1,56 @@
+// Jump to main function
+call Main.main 0
+
+label Main.done
+goto Main.done
+
+function Main.main 0
+  push constant 4
+  push constant 3
+  call Main.sum 2
+  pop temp 0
+
+  push constant 5
+  call Main.sum_ints 1
+  pop temp 1
+
+  push constant 4
+  pop temp 2
+  return
+
+function Main.sum 0
+  push argument 0
+  push argument 1
+  add
+  return
+
+function Main.sum_ints 2
+  push argument 0
+  pop local 0
+  label ADD_ANOTHER
+    // local 0 = i -- starts at argument 0
+    // local 1 = sum
+    // while i > 0
+
+    // x = i, y = 1,  x < y    
+    push local 0
+    push constant 1
+    lt
+    if-goto DONEZO
+    
+    // sum = sum + i
+    push local 1
+    push local 0
+    call Main.sum 2
+    pop local 1
+
+    // i = i - 1
+    push local 0
+    push constant 1
+    sub
+    pop local 0
+    goto ADD_ANOTHER
+
+  label DONEZO
+  push local 1
+  return
