@@ -404,7 +404,10 @@ def write_function(function_name, function_number_of_local_variables):
         result += write_pushpop("push", "constant", "0", "")
     return result
 
-def write_call(function_to_call, function_number_of_arguments, current_function, call_counter):    
+
+def write_call(
+    function_to_call, function_number_of_arguments, current_function, call_counter
+):
     result = f"// call {function_to_call} {function_number_of_arguments}\n"
     return_address = f"{current_function}$ret.{call_counter}"
     push_d_to_stack = """\
@@ -415,13 +418,13 @@ M=D
 M=M+1
 """
     # push return address
-    result += f"@{return_address}\nD=A\n{push_d_to_stack}"   
+    result += f"@{return_address}\nD=A\n{push_d_to_stack}"
     # push LCL
-    result += f"@LCL\nD=M\n{push_d_to_stack}"  
+    result += f"@LCL\nD=M\n{push_d_to_stack}"
     # push ARG
-    result += f"@ARG\nD=M\n{push_d_to_stack}"  
+    result += f"@ARG\nD=M\n{push_d_to_stack}"
     # push THIS
-    result += f"@THIS\nD=M\n{push_d_to_stack}"  
+    result += f"@THIS\nD=M\n{push_d_to_stack}"
     # push THAT
     result += f"@THAT\nD=M\n{push_d_to_stack}"
     # ARG = SP - 5 - function_number_of_arguments
@@ -451,6 +454,7 @@ M=D
     result += f"({return_address})\n"
 
     return result
+
 
 def write_return():
     # frame = LCL (R13)
@@ -515,16 +519,19 @@ M=D
 A=M
 0;JMP
 """
-    
+
     return result
+
 
 def write_label(label_name, current_function):
     label = f"{current_function}${label_name}" if current_function else label_name
     return f"// label {label_name}\n({label})\n"
 
+
 def write_goto(label_name, current_function):
     label = f"{current_function}${label_name}" if current_function else label_name
     return f"// goto {label_name}\n@{label}\n0;JMP\n"
+
 
 def write_if_goto(label_name, current_function):
     label = f"{current_function}${label_name}" if current_function else label_name
@@ -536,6 +543,7 @@ D=M
 @{label}
 D;JNE
 """
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -630,11 +638,18 @@ def main():
                 current_function = function_name
                 call_counter = 0
                 function_number_of_local_variables = command_words[2]
-                assembly_code += write_function(function_name, function_number_of_local_variables)
+                assembly_code += write_function(
+                    function_name, function_number_of_local_variables
+                )
             elif command_name == "call":
                 function_to_call = command_words[1]
                 function_number_of_arguments = command_words[2]
-                assembly_code += write_call(function_to_call, function_number_of_arguments, current_function, call_counter)
+                assembly_code += write_call(
+                    function_to_call,
+                    function_number_of_arguments,
+                    current_function,
+                    call_counter,
+                )
                 call_counter += 1
             elif command_name == "return":
                 assembly_code += write_return()
