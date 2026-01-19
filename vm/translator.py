@@ -94,7 +94,7 @@ def get_base_address_for_push_pop(segment, index, file_stem):
 
 
 def write_pushpop(command, segment, index, file_stem):
-    if (segment == "constant") and (int(index) > 65535):
+    if (segment == "constant") and (int(index) > 32767):
         print(f"Error: cannot push constant {index} because it is larger than 32767")
         exit(1)
     if int(index) < 0:
@@ -105,7 +105,7 @@ def write_pushpop(command, segment, index, file_stem):
     ):
         print(f"Error: cannot push {segment} {index} because index is out of range")
         exit(1)
-    if segment == "uart" and index > 2:
+    if segment == "uart" and int(index) > 2:
         print(f"Error: cannot push {segment} {index} because index is out of range")
         exit(1)
     result = f"// {command} {segment} {index}\n"
@@ -397,6 +397,127 @@ def write_epilog():
 """
 
 
+def write_function(function_name, function_number_of_local_variables):
+    result = f"// function {function_name} {function_number_of_local_variables}\n"
+    result += f"({function_name})\n"
+    for _ in range(int(function_number_of_local_variables)):
+        result += write_pushpop("push", "constant", "0", "")
+    return result
+
+def write_call(function_to_call, function_number_of_arguments, current_function, call_counter):    
+    result = f"// call {function_to_call} {function_number_of_arguments}\n"
+    return_address = f"{current_function}$ret.{call_counter}"
+    push_d_to_stack = """\
+@SP
+A=M
+M=D
+@SP
+M=M+1
+"""
+    # push return address
+    result += f"@{return_address}\nD=A\n{push_d_to_stack}"   
+    # push LCL
+    result += f"@LCL\nD=M\n{push_d_to_stack}"  
+    # push ARG
+    result += f"@ARG\nD=M\n{push_d_to_stack}"  
+    # push THIS
+    result += f"@THIS\nD=M\n{push_d_to_stack}"  
+    # push THAT
+    result += f"@THAT\nD=M\n{push_d_to_stack}"
+    # ARG = SP - 5 - function_number_of_arguments
+    result += f"""
+@SP
+D=M
+@5
+D=D-A
+@{function_number_of_arguments}
+D=D-A
+@ARG
+M=D
+"""
+    # LCL = SP
+    result += """
+@SP
+D=M
+@LCL
+M=D
+"""
+    # goto function_name
+    result += f"""
+@{function_to_call}
+0;JMP
+"""
+    # (return_address)
+    result += f"({return_address})\n"
+
+    return result
+
+def write_return():
+    # frame = LCL (R13)
+    # return_address = *(frame - 5) (R14)
+    # *arg = pop() (overwrite first input parameter
+    # SP = ARG+1 (stack pointer is right after returned result
+    # THAT = *(frame - 4)
+    # THIS = *(frame - 3)
+    # ARG = *(frame - 2)
+    # LCL = *(frame - 1)
+    # goto return_address
+
+    result = """
+@LCL
+D=M
+@R13
+M=D
+@5
+A=D-A
+D=M
+@R14
+M=D
+@SP
+AM=M-1
+D=M
+@ARG
+A=M
+M=D
+@ARG
+D=M+1
+@SP
+M=D
+@R13
+D=M
+@4
+A=D-A
+D=M
+@THAT
+M=D
+@R13
+D=M
+@3
+A=D-A
+D=M
+@THIS
+M=D
+@R13
+D=M
+@2
+A=D-A
+D=M
+@ARG
+M=D
+@R13
+D=M
+@1
+A=D-A
+D=M
+@LCL
+M=D
+@R14
+A=M
+0;JMP
+"""
+    
+    return result
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -407,6 +528,7 @@ def main():
     # Globals for label generation
     current_function = ""
     label_counter = 0
+    call_counter = 0
 
     assembly_code = write_prolog()
 
@@ -484,6 +606,19 @@ def main():
                     command_name, current_file_stem, label_counter
                 )
                 label_counter += 1
+            elif command_name == "function":
+                function_name = command_words[1]
+                current_function = function_name
+                call_counter = 0
+                function_number_of_local_variables = command_words[2]
+                assembly_code += write_function(function_name, function_number_of_local_variables)
+            elif command_name == "call":
+                function_to_call = command_words[1]
+                function_number_of_arguments = command_words[2]
+                assembly_code += write_call(function_to_call, function_number_of_arguments, current_function, call_counter)
+                call_counter += 1
+            elif command_name == "return":
+                assembly_code += write_return()
             else:
                 print(f"Error: unknown command {command_name}")
                 exit(1)
