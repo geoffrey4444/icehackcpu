@@ -83,7 +83,7 @@ def should_add_character_to_current_token(character, current_token):
     if current_token.type == "INTEGER_CONSTANT":
         return character.isdigit()
     elif current_token.type == "STRING_CONSTANT":
-        return character != '"'
+        return (character != '"') and (character not in newline_characters)
     elif current_token.type == "SYMBOL":
         return False
     elif current_token.type == "KEYWORD_OR_IDENTIFIER":
@@ -124,7 +124,7 @@ def main():
     in_comment_until_next_end_of_comment_string = False
 
     # loop over characters in jack_code
-    for i, c in enumerate(jack_code):           
+    for i, c in enumerate(jack_code):
         if not current_token:
             # Not currently assembling a token. Need to determine
             # if current character starts a new token  .
@@ -166,7 +166,7 @@ def main():
             if current_token_type == "SYMBOL":
                 # Token is a single-character token
                 tokens.append(current_token)
-                current_token = None                
+                current_token = None
             elif current_token_type == "STRING_CONSTANT":
                 # Do not include double-quote character in the string token
                 current_token.value = ""
@@ -186,12 +186,16 @@ def main():
                 # previous character completed a token; add it to list of tokens
                 tokens.append(current_token)
 
-                # Is the current token a STRING_CONSTANT just comlpeted? If so,
-                # the current character is the closing double-quote; we should
-                # just move on to the next character
+                # Is the current token a STRING_CONSTANT?
                 if current_token.type == "STRING_CONSTANT":
-                    current_token = None
-                    continue
+                    if c == '"':
+                        # String constant completed; ignore closing double-quote;
+                        # start new token on next character (if any) instead
+                        current_token = None
+                        continue
+                    elif c in newline_characters:
+                        # Ignore newline character in string constant
+                        continue
 
                 current_token = None
                 # Does current character start a new token?
@@ -221,7 +225,7 @@ def main():
                         current_token.value = ""
 
     for token in tokens:
-      print(f"{token.type} {token.value}")
+        print(f"{token.type} {token.value}")
     print(f"Total tokens: {len(tokens)}")
 
 
