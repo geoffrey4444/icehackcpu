@@ -1,6 +1,9 @@
 import argparse
 from dataclasses import dataclass
+from typing import Optional, Union
 from pathlib import Path
+
+# Global constants
 
 keywords = [
     "class",
@@ -25,6 +28,8 @@ keywords = [
     "while",
     "return",
 ]
+
+keyword_constants = ["true", "false", "null", "this"]
 
 symbols = [
     "{",
@@ -61,7 +66,7 @@ token_types = [
 ]
 
 
-# Dataclass to hold each token with its type
+# Dataclass and functions for tokenizing
 @dataclass
 class Token:
     type: str
@@ -99,30 +104,18 @@ def is_token_keyword(token):
     return token.type == "KEYWORD_OR_IDENTIFIER" and token.value in keywords
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "input_files", type=str, nargs="+", help="Input files containing vack vm code"
-    )
-    args = parser.parse_args()
-
-    for input_file in args.input_files:
-        current_file_path = Path(input_file)
-        current_file_stem = current_file_path.stem
-        # Get directory of input_file
-        current_file_directory = current_file_path.parent
-        # Get output file path
-        output_file_path = current_file_directory / f"{current_file_stem}.vm"
-        print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
-        with open(input_file, "r") as f:
-            jack_code = f.read()
-
+# function to tokenize code (a stream of characters)
+# basically, turn list of characters into a list of words
+# input: code (a string)
+# output: list of tokens
+def tokenize_code(jack_code):
     tokens = []
     current_token = None
     current_token_type = None
     in_comment_until_next_newline = False
     in_comment_until_next_end_of_comment_string = False
 
+    # Tokenize the jack code
     # loop over characters in jack_code
     for i, c in enumerate(jack_code):
         if not current_token:
@@ -223,6 +216,42 @@ def main():
                     elif current_token_type == "STRING_CONSTANT":
                         # Do not include double-quote character in the string token
                         current_token.value = ""
+    return tokens
+
+
+# function tokenize code from one file
+# Input: file_path = path to a .jack  file
+# Output: list of tokens
+def tokenize_code_from_file(file_path):
+    with open(file_path, "r") as f:
+        jack_code = f.read()
+        tokens = tokenize_code(jack_code)
+        return tokens
+
+
+# main function: drive compilation
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "input_files", type=str, nargs="+", help="Input files containing vack vm code"
+    )
+    args = parser.parse_args()
+
+    tokens = []
+    for input_file in args.input_files:
+        current_file_path = Path(input_file)
+        current_file_stem = current_file_path.stem
+        # Get directory of input_file
+        current_file_directory = current_file_path.parent
+        # Get output file path
+        output_file_path = current_file_directory / f"{current_file_stem}.vm"
+        print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
+
+        # For now, tokenize all files into one big list
+        # Later, parse and output xml for each file separately
+        tokens += tokenize_code_from_file(current_file_path)
 
     for token in tokens:
         print(f"{token.type} {token.value}")
