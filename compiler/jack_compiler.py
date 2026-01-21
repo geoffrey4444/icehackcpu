@@ -1,6 +1,5 @@
 from __future__ import annotations
 import argparse
-from ast import Expression
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -60,7 +59,7 @@ whitespace_characters = [" ", "\t", "\n", "\r"]
 
 newline_characters = ["\n", "\r"]
 
-token_types = [
+TokenType = Literal[
     "keyword",
     "symbol",
     "integerConstant",
@@ -71,10 +70,14 @@ token_types = [
 
 
 # Dataclasses for tokens and program structure
+
+
+# Token
 @dataclass
 class Token:
-    type: str
+    type: TokenType
     value: str
+
 
 # Term and expression related classes
 @dataclass
@@ -147,7 +150,7 @@ class SubroutineCall:
     # an expression list specifying the arguments
     expression_list: ExpressionList
     # receiver (class name or var name; token of type identifier)
-    receiver_name_token: Optional[Token]
+    receiver_name_token: Optional[Token] = None
 
 
 Term = Union[
@@ -161,7 +164,114 @@ Term = Union[
     SubroutineCall,
 ]
 
-# Functions for tokenizing 
+# Statement related classes
+
+
+@dataclass
+class LetStatement:
+    var_name_token: Token
+    expression: Expression
+    array_index: Optional[Expression] = None
+
+
+@dataclass
+class DoStatement:
+    subroutine_call: SubroutineCall
+
+
+@dataclass
+class ReturnStatement:
+    expression: Optional[Expression] = None
+
+
+@dataclass
+class IfStatement:
+    condition: Expression
+    then_statements: Statements
+    else_statements: Optional[Statements] = None
+
+
+@dataclass
+class WhileStatement:
+    condition: Expression
+    body: Statements
+
+
+Statement = Union[
+    LetStatement, DoStatement, ReturnStatement, IfStatement, WhileStatement
+]
+
+
+@dataclass
+class Statements:
+    statements: list[Statement] = field(default_factory=list)
+
+
+# Program structure related classes
+
+
+@dataclass
+class VariableDeclaration:
+    # keyword token (int, char, or boolean) or identifier (class name)
+    type_token: Token
+    # variable name token(s)
+    first_var_name_token: Token
+    other_var_name_tokens: list[Token] = field(default_factory=list)
+
+
+@dataclass
+class SubroutineBody:
+    variable_declarations: list[VariableDeclaration] = field(default_factory=list)
+    statements: Statements = field(default_factory=Statements)
+
+
+@dataclass
+class Parameter:
+    type_token: Token
+    variable_name_token: Token
+
+
+@dataclass
+class ParameterList:
+    parameters: list[Parameter] = field(default_factory=list)
+
+
+@dataclass
+class SubroutineDeclaration:
+    # keyword token (constructor or function or method)
+    subroutine_kind_token: Token
+    # return type: keyword (void, int, char, or boolean) or identifier (class name)
+    return_type_token: Token
+    # subroutine name token
+    name_token: Token
+    # parameter list
+    parameter_list: ParameterList
+    # subroutine body
+    subroutine_body: SubroutineBody
+
+
+@dataclass
+class ClassVariableDeclaration:
+    # keyword token (static or field)
+    class_variable_kind_token: Token
+    # type token: keyword (int, char, or boolean) or identifier (class name)
+    type_token: Token
+    # variable name token(s)
+    first_var_name_token: Token
+    other_var_name_tokens: list[Token] = field(default_factory=list)
+
+
+@dataclass
+class Class:
+    name_token: Token
+    class_variable_declarations: list[ClassVariableDeclaration] = field(
+        default_factory=list
+    )
+    subroutine_declarations: list[SubroutineDeclaration] = field(default_factory=list)
+
+
+# Functions for tokenizing
+
 
 def get_token_type(first_char_of_token):
     if first_char_of_token in symbols:
