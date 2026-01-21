@@ -1,7 +1,10 @@
+from __future__ import annotations
 import argparse
-from dataclasses import dataclass
-from typing import Optional, Union
+from ast import Expression
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal, Optional, Union
+import xml.etree.ElementTree as et
 
 # Global constants
 
@@ -58,40 +61,127 @@ whitespace_characters = [" ", "\t", "\n", "\r"]
 newline_characters = ["\n", "\r"]
 
 token_types = [
-    "KEYWORD",
-    "SYMBOL",
-    "INTEGER_CONSTANT",
-    "STRING_CONSTANT",
-    "IDENTIFIER" "KEYWORD_OR_IDENTIFIER",
+    "keyword",
+    "symbol",
+    "integerConstant",
+    "stringConstant",
+    "identifier",
+    "keyword_or_identifier",
 ]
 
 
-# Dataclass and functions for tokenizing
+# Dataclasses for tokens and program structure
 @dataclass
 class Token:
     type: str
     value: str
 
+# Term and expression related classes
+@dataclass
+class Expression:
+    # first term
+    first_term: Term
+    # other terms: list of pairs of symbol-type tokens representing
+    # binary operators (+|-|*|/|&|||<|>|=)
+    # a list, possibly empty
+    other_terms: list[tuple[Token, Term]] = field(default_factory=list)
+
+
+@dataclass
+class ExpressionList:
+    # a list of expressions
+    expressions: list[Expression] = field(default_factory=list)
+
+
+@dataclass
+class IntegerConstant:
+    # a token of type integerConstant specifying the constant
+    token: Token
+
+
+@dataclass
+class StringConstant:
+    # a token of type stringConstant specifying the constant
+    token: Token
+
+
+@dataclass
+class KeywordConstant:
+    # a token of type keyword specifying the constant
+    # must be one of true, false, null, this
+    token: Token
+
+
+@dataclass
+class VarName:
+    # a token of type identifier specifying the variable name
+    token: Token
+
+
+@dataclass
+class ArrayAccess:
+    # a token of type identifier specifying the array name
+    array_name_token: Token
+    # an expression specifying the index
+    expression: Expression
+
+
+@dataclass
+class ParentheticalExpression:
+    # expression representing the expression enclosed in ()
+    expression: Expression
+
+
+@dataclass
+class UnaryOpTerm:
+    # a token of type symbol specifying the unary op
+    op_token: Token
+    # a term to operate on
+    term_to_operate_on: Term
+
+
+@dataclass
+class SubroutineCall:
+    # a token of type identifier naming the subroutine
+    subroutine_name_token: Token
+    # an expression list specifying the arguments
+    expression_list: ExpressionList
+    # receiver (class name or var name; token of type identifier)
+    receiver_name_token: Optional[Token]
+
+
+Term = Union[
+    IntegerConstant,
+    StringConstant,
+    KeywordConstant,
+    VarName,
+    ArrayAccess,
+    ParentheticalExpression,
+    UnaryOpTerm,
+    SubroutineCall,
+]
+
+# Functions for tokenizing 
 
 def get_token_type(first_char_of_token):
     if first_char_of_token in symbols:
-        return "SYMBOL"
+        return "symbol"
     elif first_char_of_token.isdigit():
-        return "INTEGER_CONSTANT"
+        return "integerConstant"
     elif first_char_of_token == '"':
-        return "STRING_CONSTANT"
+        return "stringConstant"
     else:
-        return "KEYWORD_OR_IDENTIFIER"
+        return "keyword_or_identifier"
 
 
 def should_add_character_to_current_token(character, current_token):
-    if current_token.type == "INTEGER_CONSTANT":
+    if current_token.type == "integerConstant":
         return character.isdigit()
-    elif current_token.type == "STRING_CONSTANT":
+    elif current_token.type == "stringConstant":
         return (character != '"') and (character not in newline_characters)
-    elif current_token.type == "SYMBOL":
+    elif current_token.type == "symbol":
         return False
-    elif current_token.type == "KEYWORD_OR_IDENTIFIER":
+    elif current_token.type == "keyword_or_identifier":
         return not (
             (character in symbols)
             or (character.isdigit())
@@ -101,7 +191,7 @@ def should_add_character_to_current_token(character, current_token):
 
 
 def is_token_keyword(token):
-    return token.type == "KEYWORD_OR_IDENTIFIER" and token.value in keywords
+    return token.type == "keyword_or_identifier" and token.value in keywords
 
 
 # function to tokenize code (a stream of characters)
@@ -156,11 +246,11 @@ def tokenize_code(jack_code):
             # can only tell which after complete token is known
             current_token_type = get_token_type(c)
             current_token = Token(type=current_token_type, value=f"{c}")
-            if current_token_type == "SYMBOL":
+            if current_token_type == "symbol":
                 # Token is a single-character token
                 tokens.append(current_token)
                 current_token = None
-            elif current_token_type == "STRING_CONSTANT":
+            elif current_token_type == "stringConstant":
                 # Do not include double-quote character in the string token
                 current_token.value = ""
         else:
@@ -169,18 +259,18 @@ def tokenize_code(jack_code):
                 current_token.value += c
                 continue
             else:
-                # Is the completed token KEYWORD_OR_IDENTIFIER? If so, decide which
-                if current_token.type == "KEYWORD_OR_IDENTIFIER":
+                # Is the completed token keyword_or_identifier? If so, decide which
+                if current_token.type == "keyword_or_identifier":
                     if is_token_keyword(current_token):
-                        current_token.type = "KEYWORD"
+                        current_token.type = "keyword"
                     else:
-                        current_token.type = "IDENTIFIER"
+                        current_token.type = "identifier"
 
                 # previous character completed a token; add it to list of tokens
                 tokens.append(current_token)
 
-                # Is the current token a STRING_CONSTANT?
-                if current_token.type == "STRING_CONSTANT":
+                # Is the current token a stringConstant?
+                if current_token.type == "stringConstant":
                     if c == '"':
                         # String constant completed; ignore closing double-quote;
                         # start new token on next character (if any) instead
@@ -209,11 +299,11 @@ def tokenize_code(jack_code):
                     # Start a new token
                     current_token_type = get_token_type(c)
                     current_token = Token(type=current_token_type, value=f"{c}")
-                    if current_token_type == "SYMBOL":
+                    if current_token_type == "symbol":
                         # Token is a single-character token
                         tokens.append(current_token)
                         current_token = None
-                    elif current_token_type == "STRING_CONSTANT":
+                    elif current_token_type == "stringConstant":
                         # Do not include double-quote character in the string token
                         current_token.value = ""
     return tokens
@@ -228,6 +318,21 @@ def tokenize_code_from_file(file_path):
         tokens = tokenize_code(jack_code)
         return tokens
 
+
+# Functions related to xml output
+def xml_from_token_list(tokens):
+    root = et.Element("tokens")
+    for token in tokens:
+        token_element = et.SubElement(root, token.type)
+        token_element.text = f" {token.value} "
+    et.indent(root, space="")
+    xml_string = et.tostring(
+        root, encoding="utf-8", method="xml", xml_declaration=False
+    ).decode("utf-8")
+    return xml_string
+
+
+# Functions and dataclasses representing program structure
 
 # main function: drive compilation
 
@@ -247,15 +352,14 @@ def main():
         current_file_directory = current_file_path.parent
         # Get output file path
         output_file_path = current_file_directory / f"{current_file_stem}.vm"
-        print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
+        # print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
 
         # For now, tokenize all files into one big list
         # Later, parse and output xml for each file separately
         tokens += tokenize_code_from_file(current_file_path)
 
-    for token in tokens:
-        print(f"{token.type} {token.value}")
-    print(f"Total tokens: {len(tokens)}")
+    # print xml with windows line endings to match test file from nand2tetris
+    print(xml_from_token_list(tokens).replace("\n", "\r\n"), end="\r\n")
 
 
 if __name__ == "__main__":
