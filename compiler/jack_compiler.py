@@ -630,6 +630,191 @@ class JackCompiler:
             expression.other_terms.append((operator_token, next_term))
         return expression
 
+    # Compile statements
+    # 'let' varName('['expression']')?'=' expression ';'
+    def compile_let_statement(self) -> LetStatement:
+        # to get here, current token should be keyword "let"
+        if self.current_token().value != "let":
+            raise ValueError(
+                f"Expected let keyword in let statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "let"
+        var_name_token = self.current_token()
+        if var_name_token.type != "identifier":
+            raise ValueError(
+                f"Variable name token {var_name_token.value} is type {var_name_token.type}, not identifier"
+            )
+        self.advance()  # consume varName
+        array_index = None
+        if self.current_token().value == "[":
+            # assigning to index of array
+            self.advance()  # consume "["
+            array_index = self.compile_expression()
+            # after expression for array index, expect "]"
+            if self.current_token().value != "]":
+                raise ValueError(
+                    f"Expected ] after expression for array index in let statement"
+                )
+            self.advance()  # consume "]"
+        # Next token in let statement must be '='
+        if self.current_token().value != "=":
+            raise ValueError(
+                f"Expected = after variable name in let statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "="
+        expression = self.compile_expression()
+        if self.current_token().value != ";":
+            raise ValueError(f"Expected ; after expression in let statement")
+        self.advance()  # consume ";"
+
+        return LetStatement(
+            var_name_token=var_name_token,
+            array_index=array_index,
+            expression=expression,
+        )
+
+    # 'do' subroutineCall ';'
+    def compile_do_statement(self) -> DoStatement:
+        # to get here, current token should be keyword "do"
+        if self.current_token().value != "do":
+            raise ValueError(
+                f"Expected do keyword in do statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "do"
+        subroutine_call = self.compile_subroutine_call()
+        if self.current_token().value != ";":
+            raise ValueError(f"Expected ; after subroutine call in do statement")
+        self.advance()  # consume ";"
+        return DoStatement(subroutine_call=subroutine_call)
+
+    # 'return' expression? ';'
+    def compile_return_statement(self) -> ReturnStatement:
+        # to get here, current token should be keyword "return"
+        if self.current_token().value != "return":
+            raise ValueError(
+                f"Expected return keyword in return statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "return"
+        expression = None
+        if self.current_token().value != ";":
+            expression = self.compile_expression()
+        if self.current_token().value != ";":
+            raise ValueError(f"Expected ; after expression in return statement")
+        self.advance()  # consume ";"
+        return ReturnStatement(expression=expression)
+
+    # 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
+    def compile_if_statement(self) -> IfStatement:
+        # to get here, current token should be keyword "if"
+        if self.current_token().value != "if":
+            raise ValueError(
+                f"Expected if keyword in if statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "if"
+        if self.current_token().value != "(":
+            raise ValueError(f"Expected ( after if keyword in if statement")
+        self.advance()  # consume "("
+
+        condition = self.compile_expression()
+
+        if self.current_token().value != ")":
+            raise ValueError(f"Expected ) after condition in if statement")
+        self.advance()  # consume ")"
+
+        if self.current_token().value != "{":
+            raise ValueError("Expected { at start of statements block in if statement")
+        self.advance()  # consume "{" at start of statements block
+
+        then_statements = self.compile_statements()
+
+        if self.current_token().value != "}":
+            raise ValueError("Expected } at end of statements block in if statement")
+        self.advance()  # consume "}" at end of statements block
+
+        else_statements = None
+        if self.current_token().value == "else":
+            self.advance()  # consume "else"
+
+            if self.current_token().value != "{":
+                raise ValueError(
+                    "Expected { at start of statements block in else statement"
+                )
+            self.advance()  # consume "{" at start of statements block
+
+            else_statements = self.compile_statements()
+
+            if self.current_token().value != "}":
+                raise ValueError(
+                    "Expected } at end of statements block in else statement"
+                )
+            self.advance()  # consume "}" at end of statements block
+
+        return IfStatement(
+            condition=condition,
+            then_statements=then_statements,
+            else_statements=else_statements,
+        )
+
+    # 'while' '(' expression ')' '{' statements '}'
+    def compile_while_statement(self) -> WhileStatement:
+        # to get here, current token should be keyword "while"
+        if self.current_token().value != "while":
+            raise ValueError(
+                f"Expected while keyword in while statement, not {self.current_token().value}"
+            )
+        self.advance()  # consume "while"
+        if self.current_token().value != "(":
+            raise ValueError(f"Expected ( after while keyword in while statement")
+        self.advance()  # consume "("
+
+        condition = self.compile_expression()
+
+        if self.current_token().value != ")":
+            raise ValueError(f"Expected ) after condition in while statement")
+        self.advance()  # consume ")"
+
+        if self.current_token().value != "{":
+            raise ValueError(
+                "Expected { at start of statements block in while statement"
+            )
+        self.advance()  # consume "{" at start of statements block
+
+        body = self.compile_statements()
+
+        if self.current_token().value != "}":
+            raise ValueError("Expected } at end of statements block in while statement")
+        self.advance()  # consume "}" at end of statements block
+
+        return WhileStatement(condition=condition, body=body)
+
+    # statement*
+    def compile_statements(self) -> Statements:
+        statements = Statements(statements=[])
+        # Statements always appear between "{" and "}" and
+        # begin with one of five keywords, one for each of the five types
+        # of statements: let, do, return, if, while.
+        # Note: caller of compile_statements() is responsible for
+        # consuming '{' and '}'. Here we just look for "}" to recognize
+        # when we have finished consuming the statements in a statements block.
+
+        while self.current_token().value != "}":
+            if self.current_token().value == "let":
+                statements.statements.append(self.compile_let_statement())
+            elif self.current_token().value == "do":
+                statements.statements.append(self.compile_do_statement())
+            elif self.current_token().value == "return":
+                statements.statements.append(self.compile_return_statement())
+            elif self.current_token().value == "if":
+                statements.statements.append(self.compile_if_statement())
+            elif self.current_token().value == "while":
+                statements.statements.append(self.compile_while_statement())
+            else:
+                raise ValueError(
+                    f"Statement begins with {self.current_token().value}, not let|do|return|if|while"
+                )
+
+        return statements
+
 
 # main function: drive compilation
 
