@@ -556,9 +556,9 @@ class JackCompiler:
                 elif self.next_token().value == ".":
                     return self.compile_subroutine_call()
                 else:
-                    raise ValueError(
-                        f"Unexpected symbol {self.next_token().value} after identifier {current_token.value}"
-                    )
+                    # Next token is a symbol but is not part of this term
+                    self.advance()  # advance past identifier token
+                    return VarName(token=current_token)
 
     def compile_subroutine_call(self) -> SubroutineCall:
         subroutine_name_token = self.current_token()
@@ -815,6 +815,247 @@ class JackCompiler:
 
         return statements
 
+    # Compile program structure
+    def compile_variable_declaration(self) -> VariableDeclaration:
+        # to get here, current token should be keyword "var"
+        if self.current_token().value != "var":
+            raise ValueError(
+                f"Expected var keyword in variable declaration, not {self.current_token().value}"
+            )
+        self.advance()  # consume "var"
+        type_token = self.current_token()
+        if (
+            type_token.value not in ["int", "char", "boolean"]
+            and self.current_token().type != "identifier"
+        ):
+            raise ValueError(
+                f"Variable type token must be int, char, boolean, or identifier"
+            )
+        self.advance()  # consume type token
+        first_var_name_token = self.current_token()
+        if first_var_name_token.type != "identifier":
+            raise ValueError(
+                f"Variable name token {first_var_name_token.value} is type {first_var_name_token.type}, not identifier"
+            )
+        self.advance()  # consume variable name token
+        # Optionally, you can declare multiple variable names of the same time in one declaration
+        other_var_name_tokens = []
+        while self.current_token().value == ",":
+            self.advance()  # consume ","
+            if self.current_token().type != "identifier":
+                raise ValueError(
+                    f"Variable name token {self.current_token().value} is type {self.current_token().type}, not identifier"
+                )
+            other_var_name_tokens.append(self.current_token())
+            self.advance()  # consume variable name token
+
+        if self.current_token().value != ";":
+            raise ValueError("Expected ; token to end variable declaration")
+        self.advance()  # consume ";"
+
+        return VariableDeclaration(
+            type_token=type_token,
+            first_var_name_token=first_var_name_token,
+            other_var_name_tokens=other_var_name_tokens,
+        )
+
+    def compile_subroutine_body(self) -> SubroutineBody:
+        # to get here, current token should be symbol "{"
+        if self.current_token().value != "{":
+            raise ValueError("Expected { token to start subroutine body")
+        self.advance()  # consume "{"
+
+        variable_declarations = []
+        while self.current_token().value == "var":
+            variable_declarations.append(self.compile_variable_declaration())
+
+        statements = self.compile_statements()
+
+        if self.current_token().value != "}":
+            raise ValueError("Expected } token to end subroutine body")
+        self.advance()  # consume "}"
+
+        return SubroutineBody(
+            variable_declarations=variable_declarations, statements=statements
+        )
+
+    def compile_parameter(self) -> Parameter:
+        # to get here, current token should be keyword "int" or "char" or "boolean" or identifier
+        if (
+            self.current_token().value not in ["int", "char", "boolean"]
+            and self.current_token().type != "identifier"
+        ):
+            raise ValueError(
+                f"Parameter type token must be int, char, boolean, or identifier"
+            )
+        type_token = self.current_token()
+        self.advance()  # consume parameter type token
+        variable_name_token = self.current_token()
+        if variable_name_token.type != "identifier":
+            raise ValueError(
+                f"Variable name token {variable_name_token.value} is type {variable_name_token.type}, not identifier"
+            )
+        self.advance()  # consume variable name token
+        return Parameter(type_token=type_token, variable_name_token=variable_name_token)
+
+    def compile_parameter_list(self) -> ParameterList:
+        parameters = []
+        # To get here, subroutine should have at least one parameter
+        parameters.append(self.compile_parameter())
+        while self.current_token().value == ",":
+            self.advance()  # consume ","
+            parameters.append(self.compile_parameter())
+        return ParameterList(parameters=parameters)
+
+    def compile_subroutine_declaration(self) -> SubroutineDeclaration:
+        # to get here, current token should be keyword "constructor" or "function" or "method"
+        if self.current_token().value not in ["constructor", "function", "method"]:
+            raise ValueError(
+                f"Expected keyword constructor, function, or method at subroutine declaration start"
+            )
+        subroutine_kind_token = self.current_token()
+        self.advance()  # consume subroutine kind token
+
+        return_type_token = self.current_token()
+        if (
+            return_type_token.value not in ["void", "int", "char", "boolean"]
+            and return_type_token.type != "identifier"
+        ):
+            raise ValueError(
+                f"Return type token must be void, int, char, boolean, or identifier"
+            )
+        self.advance()  # consume return type token
+
+        name_token = self.current_token()
+        if name_token.type != "identifier":
+            raise ValueError(
+                f"Subroutine name token {name_token.value} is type {name_token.type}, not identifier"
+            )
+        self.advance()  # consume subroutine name token
+
+        if self.current_token().value != "(":
+            raise ValueError(f"Expected ( after subroutine name {name_token.value}")
+        self.advance()  # consume "("
+        parameter_list = ParameterList(parameters=[])
+        if self.current_token().value != ")":
+            parameter_list = self.compile_parameter_list()
+        if self.current_token().value != ")":
+            raise ValueError(
+                f"Expected ) after parameter list in subroutine declaration"
+            )
+        self.advance()  # consume ")"
+
+        subroutine_body = self.compile_subroutine_body()
+
+        return SubroutineDeclaration(
+            subroutine_kind_token=subroutine_kind_token,
+            return_type_token=return_type_token,
+            name_token=name_token,
+            parameter_list=parameter_list,
+            subroutine_body=subroutine_body,
+        )
+
+    def compile_class_variable_declaration(self) -> ClassVariableDeclaration:
+        # to get here, current token should be keyword "static" or "field"
+        if self.current_token().value not in ["static", "field"]:
+            raise ValueError(
+                f"Expected keyword static or field at class variable declaration start"
+            )
+        class_variable_kind_token = self.current_token()
+        self.advance()  # consume class variable kind token
+
+        type_token = self.current_token()
+        if (
+            type_token.value not in ["int", "char", "boolean"]
+            and self.current_token().type != "identifier"
+        ):
+            raise ValueError(
+                f"Variable type token must be int, char, boolean, or identifier"
+            )
+        self.advance()  # consume type token
+        first_var_name_token = self.current_token()
+        if first_var_name_token.type != "identifier":
+            raise ValueError(
+                f"Variable name token {first_var_name_token.value} is type {first_var_name_token.type}, not identifier"
+            )
+        self.advance()  # consume variable name token
+        # Optionally, you can declare multiple variable names of the same time in one declaration
+        other_var_name_tokens = []
+        while self.current_token().value == ",":
+            self.advance()  # consume ","
+            if self.current_token().type != "identifier":
+                raise ValueError(
+                    f"Variable name token {self.current_token().value} is type {self.current_token().type}, not identifier"
+                )
+            other_var_name_tokens.append(self.current_token())
+            self.advance()  # consume variable name token
+
+        if self.current_token().value != ";":
+            raise ValueError("Expected ; token to end class variable declaration")
+        self.advance()  # consume ";"
+
+        return ClassVariableDeclaration(
+            class_variable_kind_token=class_variable_kind_token,
+            type_token=type_token,
+            first_var_name_token=first_var_name_token,
+            other_var_name_tokens=other_var_name_tokens,
+        )
+
+    def compile_class(self) -> Class:
+        # to get here, current token should be keyword "class"
+        if self.current_token().value != "class":
+            raise ValueError(f"Expected keyword class at class start")
+        self.advance()  # consume "class"
+
+        name_token = self.current_token()
+        if name_token.type != "identifier":
+            raise ValueError(
+                f"Class name token {name_token.value} is type {name_token.type}, not identifier"
+            )
+        self.advance()  # consume class name token
+
+        if self.current_token().value != "{":
+            raise ValueError("Expected { token to start class body")
+        self.advance()  # consume "{"
+
+        class_variable_declarations = []
+        while (
+            self.current_token().value == "static"
+            or self.current_token().value == "field"
+        ):
+            class_variable_declarations.append(
+                self.compile_class_variable_declaration()
+            )
+
+        subroutine_declarations = []
+        while (
+            self.current_token().value == "constructor"
+            or self.current_token().value == "function"
+            or self.current_token().value == "method"
+        ):
+            subroutine_declarations.append(self.compile_subroutine_declaration())
+
+        if self.current_token().value != "}":
+            raise ValueError("Expected } token to end class body")
+        self.advance()  # consume "}"
+
+        if self.current_token_index != len(self.tokens):
+            raise ValueError(
+                "Expected end of input after class body; Jack assumes one class per file"
+            )
+
+        return Class(
+            name_token=name_token,
+            class_variable_declarations=class_variable_declarations,
+            subroutine_declarations=subroutine_declarations,
+        )
+
+    # Emitters
+
+    # Emit XML
+
+    # Emit vm code
+
 
 # main function: drive compilation
 
@@ -834,14 +1075,27 @@ def main():
         current_file_directory = current_file_path.parent
         # Get output file path
         output_file_path = current_file_directory / f"{current_file_stem}.vm"
-        # print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
+        print(f"Processing {current_file_stem}.jack -> {current_file_stem}.vm")
 
-        # For now, tokenize all files into one big list
-        # Later, parse and output xml for each file separately
-        tokens += tokenize_code_from_file(current_file_path)
+        # Tokenize the current file and output the result
+        tokens = tokenize_code_from_file(current_file_path)
+
+        output_file_path_tokens = current_file_directory / f"{current_file_stem}T.xml"
+        with open(output_file_path_tokens, "w") as output_file:
+            output_file.write(xml_from_token_list(tokens).replace("\n", "\r\n"))
+            print(f"  Output XML to {output_file_path_tokens}")
+
+        # Compile the current file
+        jack_compiler = JackCompiler(tokens=tokens)
+        compiled_class = jack_compiler.compile_class()
+
+        output_file_path_raw = current_file_directory / f"{current_file_stem}.raw"
+        with open(output_file_path_raw, "w") as output_file:
+            output_file.write(str(compiled_class))
+            print(f"  Output raw to {output_file_path_raw}")
 
     # print xml with windows line endings to match test file from nand2tetris
-    print(xml_from_token_list(tokens).replace("\n", "\r\n"), end="\r\n")
+    # print(xml_from_token_list(tokens).replace("\n", "\r\n"), end="\r\n")
 
 
 if __name__ == "__main__":
