@@ -559,6 +559,11 @@ def main():
     parser.add_argument(
         "input_files", type=str, nargs="+", help="Input files containing vack vm code"
     )
+    parser.add_argument(
+        "--write_prolog_and_epilog",
+        action="store_true",
+        help="Write prolog and epilog for testing (i.e. if no sys.Init)",
+    )
     args = parser.parse_args()
 
     # Globals for label generation
@@ -566,7 +571,7 @@ def main():
     label_counter = 0
     call_counter = 0
 
-    assembly_code = write_prolog()
+    assembly_code = write_prolog() if args.write_prolog_and_epilog else ""
 
     # loop over input files
     for input_file in args.input_files:
@@ -674,8 +679,8 @@ def main():
             else:
                 print(f"Error: unknown command {command_name}")
                 exit(1)
-
-    assembly_code += write_epilog()
+    if args.write_prolog_and_epilog:
+        assembly_code += write_epilog()
     print(assembly_code)
 
 
