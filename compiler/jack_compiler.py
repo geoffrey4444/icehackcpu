@@ -446,19 +446,6 @@ def tokenize_code_from_file(file_path):
         return tokens
 
 
-# Functions related to xml output
-def xml_from_token_list(tokens):
-    root = et.Element("tokens")
-    for token in tokens:
-        token_element = et.SubElement(root, token.type)
-        token_element.text = f" {token.value} "
-    et.indent(root, space="")
-    xml_string = et.tostring(
-        root, encoding="utf-8", method="xml", xml_declaration=False
-    ).decode("utf-8")
-    return xml_string
-
-
 # Class for compiling program structure
 
 
@@ -1051,8 +1038,342 @@ class JackCompiler:
         )
 
     # Emitters
+    # Emit XML for tokenized Jack code
+    # Functions related to xml output
+    def xml_from_token_list(tokens):
+        root = et.Element("tokens")
+        for token in tokens:
+            token_element = et.SubElement(root, token.type)
+            token_element.text = f" {token.value} "
+        et.indent(root, space="")
+        xml_string = et.tostring(
+            root, encoding="utf-8", method="xml", xml_declaration=False
+        ).decode("utf-8")
+        return xml_string
 
-    # Emit XML
+    # Emit XML for parsed Jack code
+    # The nodes are the different dataclass instances
+    # The emit() function gets called recursively, routes to the correct
+    # emitter for each node type
+    class EmitJackParsedXml:
+        def emit_token(self, node: Token):
+            tag = node.type.value if hasattr(node.type, "value") else str(node.type)
+            element = et.Element(tag)
+            element.text = f" {node.value} "
+            return element
+
+        def emit_string_constant(self, node: StringConstant):
+            element = et.Element("term")
+            element.append(self.emit_token(node.token))
+            return element
+
+        def emit_integer_constant(self, node: IntegerConstant):
+            element = et.Element("term")
+            element.append(self.emit_token(node.token))
+            return element
+
+        def emit_keyword_constant(self, node: KeywordConstant):
+            element = et.Element("term")
+            element.append(self.emit_token(node.token))
+            return element
+
+        def emit_var_name(self, node: VarName):
+            element = et.Element("term")
+            element.append(self.emit_token(node.token))
+            return element
+
+        def emit_array_access(self, node: ArrayAccess):
+            element = et.Element("term")
+            left_bracket_token = Token(type="symbol", value="[")
+            right_bracket_token = Token(type="symbol", value="]")
+            name_token = node.array_name_token
+            index_expression = node.array_index
+            element.append(self.emit_token(name_token))
+            element.append(self.emit_token(left_bracket_token))
+            element.append(self.emit_expression(index_expression))
+            element.append(self.emit_token(right_bracket_token))
+            return element
+
+        def emit_parenthetical_expression(self, node: ParentheticalExpression):
+            element = et.Element("term")
+            left_paren_token = Token(type="symbol", value="(")
+            right_paren_token = Token(type="symbol", value=")")
+            element.append(self.emit_token(left_paren_token))
+            element.append(self.emit_expression(node.expression))
+            element.append(self.emit_token(right_paren_token))
+            return element
+
+        def emit_unary_op_term(self, node: UnaryOpTerm):
+            element = et.Element("term")
+            unary_op_token = node.unary_op_token
+            term_to_operate_on = node.term_to_operate_on
+            element.append(self.emit_token(unary_op_token))
+            element.append(self.emit_term(term_to_operate_on))
+            return element
+
+        def emit_subroutine_call(self, node: SubroutineCall):
+            element = et.Element("term")
+            subroutine_name_token = node.subroutine_name_token
+            receiver_name_token = node.receiver_name_token
+            dot_tok = Token(type="symbol", value=".")
+            left_paren_token = Token(type="symbol", value="(")
+            right_paren_token = Token(type="symbol", value=")")
+            expression_list = node.expression_list
+            if receiver_name_token != None:
+                element.append(self.emit_token(receiver_name_token))
+                element.append(self.emit_token(dot_tok))
+            element.append(self.emit_token(subroutine_name_token))
+            element.append(self.emit_token(left_paren_token))
+            if expression_list.expressions != []:
+                element.append(self.emit_expression_list(expression_list))
+            element.append(self.emit_token(right_paren_token))
+            return element
+
+        def emit_expression(self, node: Expression):
+            element = et.Element("expression")
+            first_term = node.first_term
+            other_terms = node.other_terms
+            element.append(self.emit_term(first_term))
+            for operator_token, term in other_terms:
+                element.append(self.emit_token(operator_token))
+                element.append(self.emit_term(term))
+            return element
+
+        def emit_expression_list(self, node: ExpressionList):
+            element = et.Element("expressionList")
+            for expression in node.expressions:
+                element.append(self.emit_expression(expression))
+            return element
+
+        def emit_term(self, node: Term):
+            match node:
+                case IntegerConstant():
+                    return self.emit_integer_constant(node)
+                case StringConstant():
+                    return self.emit_string_constant(node)
+                case KeywordConstant():
+                    return self.emit_keyword_constant(node)
+                case VarName():
+                    return self.emit_var_name(node)
+                case ArrayAccess():
+                    return self.emit_array_access(node)
+                case ParentheticalExpression():
+                    return self.emit_parenthetical_expression(node)
+                case UnaryOpTerm():
+                    return self.emit_unary_op_term(node)
+                case SubroutineCall():
+                    return self.emit_subroutine_call(node)
+                case _:
+                    raise ValueError(f"Unexpected term type {type(node)}")
+
+        def emit_let_statement(self, node: LetStatement):
+            element = et.Element("letStatement")
+            var_name_token = node.var_name_token
+            expression = node.expression
+            array_index = node.array_index
+            let_token = Token(type="keyword", value="let")
+            equal_token = Token(type="symbol", value="=")
+            semicolon_token = Token(type="symbol", value=";")
+            left_bracket_token = Token(type="symbol", value="[")
+            right_bracket_token = Token(type="symbol", value="]")
+
+            element.append(self.emit_token(let_token))
+            element.append(self.emit_token(var_name_token))
+            if array_index != None:
+                element.append(self.emit_token(left_bracket_token))
+                element.append(self.emit_expression(array_index))
+                element.append(self.emit_token(right_bracket_token))
+            element.append(self.emit_token(equal_token))
+            element.append(self.emit_expression(expression))
+            element.append(self.emit_token(semicolon_token))
+            return element
+
+        def emit_do_statement(self, node: DoStatement):
+            element = et.Element("doStatement")
+            do_token = Token(type="keyword", value="do")
+            subroutine_call = node.subroutine_call
+            semicolon_token = Token(type="symbol", value=";")
+            element.append(self.emit_token(do_token))
+            # Extend the do statement with the children of the
+            # term element returned by emit_subroutine_call()
+            subroutine_call_element = self.emit_subroutine_call(subroutine_call)
+            element.extend(list(subroutine_call_element))
+            element.append(self.emit_token(semicolon_token))
+            return element
+
+        def emit_return_statement(self, node: ReturnStatement):
+            element = et.Element("returnStatement")
+            return_token = Token(type="keyword", value="return")
+            expression = node.expression
+            semicolon_token = Token(type="symbol", value=";")
+            element.append(self.emit_token(return_token))
+            if expression != None:
+                element.append(self.emit_expression(expression))
+            element.append(self.emit_token(semicolon_token))
+            return element
+
+        def emit_if_statement(self, node: IfStatement):
+            element = et.Element("ifStatement")
+            if_token = Token(type="keyword", value="if")
+            left_paren_token = Token(type="symbol", value="(")
+            right_paren_token = Token(type="symbol", value=")")
+            left_bracket_token = Token(type="symbol", value="{")
+            right_bracket_token = Token(type="symbol", value="}")
+            else_token = Token(type="keyword", value="else")
+
+            element.append(self.emit_token(if_token))
+            element.append(self.emit_token(left_paren_token))
+            element.append(self.emit_expression(node.condition))
+            element.append(self.emit_token(right_paren_token))
+            element.append(self.emit_token(left_bracket_token))
+            element.append(self.emit_statements(node.then_statements))
+            element.append(self.emit_token(right_bracket_token))
+            if node.else_statements != None:
+                element.append(self.emit_token(else_token))
+                element.append(self.emit_token(left_bracket_token))
+                element.append(self.emit_statements(node.else_statements))
+                element.append(self.emit_token(right_bracket_token))
+            return element
+
+        def emit_while_statement(self, node: WhileStatement):
+            element = et.Element("whileStatement")
+            while_token = Token(type="keyword", value="while")
+            left_paren_token = Token(type="symbol", value="(")
+            right_paren_token = Token(type="symbol", value=")")
+            left_bracket_token = Token(type="symbol", value="{")
+            right_bracket_token = Token(type="symbol", value="}")
+            element.append(self.emit_token(while_token))
+            element.append(self.emit_token(left_paren_token))
+            element.append(self.emit_expression(node.condition))
+            element.append(self.emit_token(right_paren_token))
+            element.append(self.emit_token(left_bracket_token))
+            element.append(self.emit_statements(node.statements))
+            element.append(self.emit_token(right_bracket_token))
+            return element
+
+        def emit_statement(self, node: Statement):
+            match node:
+                case LetStatement():
+                    return self.emit_let_statement(node)
+                case DoStatement():
+                    return self.emit_do_statement(node)
+                case ReturnStatement():
+                    return self.emit_return_statement(node)
+                case IfStatement():
+                    return self.emit_if_statement(node)
+                case WhileStatement():
+                    return self.emit_while_statement(node)
+                case _:
+                    raise ValueError(f"Unexpected statement type {type(node)}")
+
+        def emit_statements(self, node: Statements):
+            element = et.Element("statements")
+            for statement in node.statements:
+                element.append(self.emit_statement(statement))
+            return element
+
+        def emit_variable_declaration(self, node: VariableDeclaration):
+            element = et.Element("varDec")
+            var_token = Token(type="keyword", value="var")
+            type_token = node.type_token
+            first_var_name_token = node.first_var_name_token
+            other_var_name_tokens = node.other_var_name_tokens
+            comma_token = Token(type="symbol", value=",")
+            semicolon_token = Token(type="symbol", value=";")
+            element.append(self.emit_token(var_token))
+            element.append(self.emit_token(type_token))
+            element.append(self.emit_token(first_var_name_token))
+            for var_name_token in other_var_name_tokens:
+                element.append(self.emit_token(comma_token))
+                element.append(self.emit_token(var_name_token))
+            element.append(self.emit_token(semicolon_token))
+            return element
+
+        def emit_subroutine_body(self, node: SubroutineBody):
+            element = et.Element("subroutineBody")
+            left_brace_token = Token(type="symbol", value="{")
+            right_brace_token = Token(type="symbol", value="}")
+            var_declarations = node.var_declarations
+            statements = node.statements
+            element.append(self.emit_token(left_brace_token))
+            for var_declaration in var_declarations:
+                element.append(self.emit_variable_declaration(var_declaration))
+            element.append(self.emit_statements(statements))
+            element.append(self.emit_token(right_brace_token))
+            return element
+
+        def emit_parameter_list(self, node: ParameterList):
+            element = et.Element("parameterList")
+            comma_token = Token(type="symbol", value=",")
+            for i, parameter in enumerate(node.parameters):
+                element.extend(list(self.emit_parameter(node)))
+                if i < len(node.parameters) - 1 and len(node.parameters) > 1:
+                    element.append(self.emit_token(comma_token))
+            return element
+
+        def emit_parameter(self, node: Parameter):
+            element = et.Element("parameter")
+            type_token = node.type_token
+            variable_name_token = node.variable_name_token
+            element.append(self.emit_token(type_token))
+            element.append(self.emit_token(variable_name_token))
+            return element
+
+        # SubroutineDeclaration, ClassVariableDeclaration, Class
+
+        def emit(self, node):
+            # Match looks for different class patterns
+            match node:
+                case Class():
+                    return self.emit_class(node)
+                case ClassVariableDeclaration():
+                    return self.emit_class_variable_declaration(node)
+                case SubroutineDeclaration():
+                    return self.emit_subroutine_declaration(node)
+                case ParameterList():
+                    return self.emit_parameter_list(node)
+                case Parameter():
+                    return self.emit_parameter(node)
+                case SubroutineBody():
+                    return self.emit_subroutine_body(node)
+                case VariableDeclaration():
+                    return self.emit_variable_declaration(node)
+                case Statements():
+                    return self.emit_statements(node)
+                case LetStatement():
+                    return self.emit_let_statement(node)
+                case DoStatement():
+                    return self.emit_do_statement(node)
+                case ReturnStatement():
+                    return self.emit_return_statement(node)
+                case IfStatement():
+                    return self.emit_if_statement(node)
+                case WhileStatement():
+                    return self.emit_while_statement(node)
+                case ExpressionList():
+                    return self.emit_expression_list(node)
+                case Expression():
+                    return self.emit_expression(node)
+                case SubroutineCall():
+                    return self.emit_subroutine_call(node)
+                case UnaryOpTerm():
+                    return self.emit_unary_op_term(node)
+                case ParentheticalExpression():
+                    return self.emit_parenthetical_expression(node)
+                case ArrayAccess():
+                    return self.emit_array_access(node)
+                case VarName():
+                    return self.emit_var_name(node)
+                case KeywordConstant():
+                    return self.emit_keyword_constant(node)
+                case IntegerConstant():
+                    return self.emit_integer_constant(node)
+                case StringConstant():
+                    return self.emit_string_constant(node)
+                case Token():
+                    return self.emit_token(node)
+                case _:
+                    raise ValueError(f"Unexpected node type {type(node)}")
 
     # Emit vm code
 
