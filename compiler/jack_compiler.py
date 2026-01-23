@@ -1040,6 +1040,148 @@ class JackCompiler:
 
 # Emitters
 
+# Code to emit VM code
+# Writes different VM statements as strings
+segments = [
+    "argument",
+    "local",
+    "static",
+    "constant",
+    "this",
+    "that",
+    "pointer",
+    "temp",
+    "uart",
+]
+
+arithmetic_commands = [
+    "add",
+    "sub",
+    "neg",
+    "eq",
+    "gt",
+    "lt",
+    "and",
+    "or",
+    "not",
+]
+
+
+class WriteVmCode:
+    @staticmethod
+    def write_push(segment: str, index: int, include_newline: bool = True) -> str:
+        if segment not in segments:
+            raise ValueError(f"Cannot write vm code: invalid segment {segment}")
+        if index < 0:
+            raise ValueError(f"Cannot write vm code: index {index} is negative")
+        if segment == "constant" and index > 32767:
+            raise ValueError(
+                f"Cannot write vm code: constant {index} is greater than 32767"
+            )
+        if segment == "pointer" and index > 1:
+            raise ValueError(f"Cannot write vm code: pointer {index} is greater than 1")
+        if segment == "temp" and index > 7:
+            raise ValueError(f"Cannot write vm code: temp {index} is greater than 7")
+        if segment == "uart" and index > 2:
+            raise ValueError(f"Cannot write vm code: uart {index} is greater than 2")
+        result = f"push {segment} {index}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_pop(segment: str, index: int, include_newline: bool = True) -> str:
+        if segment not in segments:
+            raise ValueError(f"Cannot write vm code: invalid segment {segment}")
+        if index < 0:
+            raise ValueError(f"Cannot write vm code: index {index} is negative")
+        if segment == "constant":
+            raise ValueError(f"Cannot write vm code: cannot pop to constant segment")
+        if segment == "pointer" and index > 1:
+            raise ValueError(f"Cannot write vm code: pointer {index} is greater than 1")
+        if segment == "temp" and index > 7:
+            raise ValueError(f"Cannot write vm code: temp {index} is greater than 7")
+        if segment == "uart" and index > 2:
+            raise ValueError(f"Cannot write vm code: uart {index} is greater than 2")
+        result = f"pop {segment} {index}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_arithmetic(self, command: str, include_newline: bool = True) -> str:
+        if command not in arithmetic_commands:
+            raise ValueError(
+                f"Cannot write vm code: invalid arithmetic command {command}"
+            )
+        result = f"{command}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_label(label: str, include_newline: bool = True) -> str:
+        if label == "":
+            raise ValueError(f"Cannot write vm code: label cannot be empty")
+        result = f"label {label}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_goto(label: str, include_newline: bool = True) -> str:
+        if label == "":
+            raise ValueError(f"Cannot write vm code: label cannot be empty")
+        result = f"goto {label}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_if_goto(label: str, include_newline: bool = True) -> str:
+        if label == "":
+            raise ValueError(f"Cannot write vm code: label cannot be empty")
+        result = f"if-goto {label}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_function(function_name: str, number_of_local_variables: int, include_newline: bool = True) -> str:
+        if function_name == "":
+            raise ValueError(f"Cannot write vm code: function name cannot be empty")
+        if number_of_local_variables < 0:
+            raise ValueError(f"Cannot write vm code: number of local variables cannot be negative")
+        result = f"function {function_name} {number_of_local_variables}"
+        if include_newline:
+            result += "\n"
+        return result
+
+    @staticmethod
+    def write_call(function_name: str, number_of_arguments: int, include_newline: bool = True) -> str:
+        if function_name == "":
+            raise ValueError(f"Cannot write vm code: function name cannot be empty")
+        if number_of_arguments < 0:
+            raise ValueError(f"Cannot write vm code: number of arguments cannot be negative")
+        result = f"call {function_name} {number_of_arguments}"
+        if include_newline:
+            result += "\n"
+        return result
+    
+    @staticmethod
+    def write_return(include_newline: bool = True) -> str:
+        result = f"return"
+        if include_newline:
+            result += "\n"
+        return result
+
+# SymbolTable class: manage lookup for addresses of identifiers
+
+# VMWriter: writes different VM code to strings
+
+# VMGenerator: walks the JackCompiler output tree,
+# writing vm code for the different constructs
+
 
 # Functions related to xml output
 def xml_from_token_list(tokens):
