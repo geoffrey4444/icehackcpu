@@ -1116,7 +1116,7 @@ class VmWriter:
         return result
 
     @staticmethod
-    def write_arithmetic(self, command: str, include_newline: bool = True) -> str:
+    def write_arithmetic(command: str, include_newline: bool = True) -> str:
         if command not in arithmetic_commands:
             raise ValueError(
                 f"Cannot write vm code: invalid arithmetic command {command}"
@@ -1255,6 +1255,7 @@ class VMGenerator:
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
+        self.current_subroutine_kind = ""
 
     def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
         return self.vm_writer.write_push("constant", int(node.token.value))
@@ -1289,6 +1290,10 @@ class VMGenerator:
         )
         result += self.vm_writer.write_call("String.new", 1)
         for char in text:
+            if 0 <= ord(char) <= 255:
+                raise ValueError(
+                    f"Unsupported non-ASCII character {char} in string constant"
+                )
             result += self.vm_writer.write_push("constant", ord(char))
             result += self.vm_writer.write_call("String.appendChar", 2)
         return result
@@ -1324,6 +1329,11 @@ class VMGenerator:
                     f"Variable {variable_name} not found in symbol tables. Missing declaration?"
                 )
             variable_index = self.class_symbol_table.index_of(variable_name)
+        # Check that variable_index is not None
+        if variable_index == None:
+            raise ValueError(
+                f"Variable {variable_name} index is None. Missing declaration?"
+            )
         if variable_kind == "static":
             result += self.vm_writer.write_push("static", variable_index)
         elif variable_kind == "field":
@@ -1354,6 +1364,10 @@ class VMGenerator:
                 return self.generate_vm_code_for_array_access(node)
             case SubroutineCall():
                 return self.generate_vm_code_for_subroutine_call(node)
+            case _:
+                # This should not be possible to reach, but include to
+                # guard against possible future edits that would add new terms
+                raise ValueError(f"Unknown term {node}")
 
     def generate_vm_code_for_binary_operator(self, operator_token: Token) -> str:
         match operator_token.value:
