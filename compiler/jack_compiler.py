@@ -1070,10 +1070,11 @@ SymbolRecordKind = Literal[
     "static",
     "field",
     "argument",
-    "variable",
+    "local",
 ]
 
-class WriteVmCode:
+
+class VmWriter:
     @staticmethod
     def write_push(segment: str, index: int, include_newline: bool = True) -> str:
         if segment not in segments:
@@ -1153,27 +1154,35 @@ class WriteVmCode:
         return result
 
     @staticmethod
-    def write_function(function_name: str, number_of_local_variables: int, include_newline: bool = True) -> str:
+    def write_function(
+        function_name: str, number_of_local_variables: int, include_newline: bool = True
+    ) -> str:
         if function_name == "":
             raise ValueError(f"Cannot write vm code: function name cannot be empty")
         if number_of_local_variables < 0:
-            raise ValueError(f"Cannot write vm code: number of local variables cannot be negative")
+            raise ValueError(
+                f"Cannot write vm code: number of local variables cannot be negative"
+            )
         result = f"function {function_name} {number_of_local_variables}"
         if include_newline:
             result += "\n"
         return result
 
     @staticmethod
-    def write_call(function_name: str, number_of_arguments: int, include_newline: bool = True) -> str:
+    def write_call(
+        function_name: str, number_of_arguments: int, include_newline: bool = True
+    ) -> str:
         if function_name == "":
             raise ValueError(f"Cannot write vm code: function name cannot be empty")
         if number_of_arguments < 0:
-            raise ValueError(f"Cannot write vm code: number of arguments cannot be negative")
+            raise ValueError(
+                f"Cannot write vm code: number of arguments cannot be negative"
+            )
         result = f"call {function_name} {number_of_arguments}"
         if include_newline:
             result += "\n"
         return result
-    
+
     @staticmethod
     def write_return(include_newline: bool = True) -> str:
         result = f"return"
@@ -1181,9 +1190,9 @@ class WriteVmCode:
             result += "\n"
         return result
 
+
 # SymbolTable class: manage lookup for addresses of identifiers
 
-# 
 
 @dataclass
 class SymbolTableRecord:
@@ -1191,16 +1200,18 @@ class SymbolTableRecord:
     kind: SymbolRecordKind
     index: int
 
+
 @dataclass
 class SymbolTable:
     counts_by_kind: dict[SymbolRecordKind, int] = field(default_factory=dict)
     records: dict[str, SymbolTableRecord] = field(default_factory=dict)
+
     def reset(self):
         self.counts_by_kind = {
             "static": 0,
             "field": 0,
             "argument": 0,
-            "variable": 0,
+            "local": 0,
         }
         self.records = {}
 
@@ -1210,28 +1221,196 @@ class SymbolTable:
     def define(self, symbol_name: str, symbol_type: str, kind: SymbolRecordKind):
         index_for_new_symbol = self.counts_by_kind[kind]
         self.counts_by_kind[kind] += 1
-        self.records[symbol_name] = SymbolTableRecord(type=symbol_type, kind=kind, index=index_for_new_symbol)
+        self.records[symbol_name] = SymbolTableRecord(
+            type=symbol_type, kind=kind, index=index_for_new_symbol
+        )
 
     def var_count(self, kind: SymbolRecordKind) -> int:
         return self.counts_by_kind[kind]
-    
+
     def kind_of(self, symbol_name: str) -> Optional[SymbolRecordKind]:
         record = self.records.get(symbol_name, None)
         return record.kind if record else None
-    
+
     def type_of(self, symbol_name: str) -> Optional[str]:
         record = self.records.get(symbol_name, None)
         return record.type if record else None
-    
+
     def index_of(self, symbol_name: str) -> Optional[int]:
         record = self.records.get(symbol_name, None)
         return record.index if record else None
 
 
-# VMWriter: writes different VM code to strings
-
 # VMGenerator: walks the JackCompiler output tree,
 # writing vm code for the different constructs
+class VMGenerator:
+    vm_writer: VmWriter
+    class_symbol_table: SymbolTable
+    subroutine_symbol_table: SymbolTable
+
+    def __init__(self):
+        self.vm_writer = VmWriter()
+        self.class_symbol_table = SymbolTable()
+        self.subroutine_symbol_table = SymbolTable()
+
+    def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
+        return self.vm_writer.write_push("constant", node.token.value)
+
+    def generate_vm_code_for_keyword_constant(self, node: KeywordConstant) -> str:
+        result = ""
+        if node.token.value == "true":
+            result += self.vm_writer.write_push("constant", 1)
+            result += self.vm_writer.write_arithmetic("neg")
+        elif node.token.value == "false":
+            result += self.vm_writer.write_push("constant", 0)
+        elif node.token.value == "null":
+            result += self.vm_writer.write_push("constant", 0)
+        elif node.token.value == "this":
+            result += self.vm_writer.write_push("pointer", 0)
+        else:
+            raise ValueError(f"Unknown keyword constant {node.token.value}")
+        return result
+
+    # I *think* what this does is use a system call to allocate a string
+    # in the heap, then put the pointer to that string on the stack.
+    # I won't be able to run this code until I actually have an implementation
+    # of String.new and String.append.
+    def generate_vm_code_for_string_constant(self, node: StringConstant) -> str:
+        text = node.token.value
+        number_of_chars = len(text)
+        number_of_chars_integer_constant = IntegerConstant(
+            token=Token(type="integerConstant", value=str(number_of_chars))
+        )
+        result = self.generate_vm_code_for_integer_constant(
+            number_of_chars_integer_constant
+        )
+        result += self.vm_writer.write_call("String.new", 1)
+        for char in text:
+            result += self.vm_writer.write_push("constant", ord(char))
+            result += self.vm_writer.write_call("String.appendChar", 2)
+        return result
+
+    def generate_vm_code_for_parenthetical_expression(
+        self, node: ParentheticalExpression
+    ) -> str:
+        return self.generate_vm_code_for_expression(node.expression)
+
+    def generate_vm_code_for_unary_op_term(self, node: UnaryOpTerm) -> str:
+        result = self.generate_vm_code_for_term(node.term_to_operate_on)
+        result += self.generate_vm_code_for_unary_operator(node.op_token)
+        return result
+
+    def generate_vm_code_for_unary_operator(self, operator_token: Token) -> str:
+        match operator_token.value:
+            case "-":
+                return self.vm_writer.write_arithmetic("neg")
+            case "~":
+                return self.vm_writer.write_arithmetic("not")
+            case _:
+                raise ValueError(f"Unknown unary operator {operator_token.value}")
+
+    def generate_vm_code_for_var_name(self, node: VarName) -> str:
+        result = ""
+        variable_name = node.token.value
+        variable_kind = self.subroutine_symbol_table.kind_of(variable_name)
+        variable_index = self.subroutine_symbol_table.index_of(variable_name)
+        if variable_kind == None:
+            variable_kind = self.class_symbol_table.kind_of(variable_name)
+            if variable_kind == None:
+                raise ValueError(
+                    f"Variable {variable_name} not found in symbol tables. Missing declaration?"
+                )
+            variable_index = self.class_symbol_table.index_of(variable_name)
+        if variable_kind == "static":
+            result += self.vm_writer.write_push("static", variable_index)
+        elif variable_kind == "field":
+            result += self.vm_writer.write_push("this", variable_index)
+        elif variable_kind == "argument":
+            result += self.vm_writer.write_push("argument", variable_index)
+        elif variable_kind == "local":
+            result += self.vm_writer.write_push("local", variable_index)
+        else:
+            raise ValueError(f"Unknown variable kind {variable_kind}")
+        return result
+
+    def generate_vm_code_for_term(self, node: Term) -> str:
+        match node:
+            case IntegerConstant():
+                return self.generate_vm_code_for_integer_constant(node)
+            case KeywordConstant():
+                return self.generate_vm_code_for_keyword_constant(node)
+            case VarName():
+                return self.generate_vm_code_for_var_name(node)
+            case StringConstant():
+                return self.generate_vm_code_for_string_constant(node)
+            case ParentheticalExpression():
+                return self.generate_vm_code_for_parenthetical_expression(node)
+            case UnaryOpTerm():
+                return self.generate_vm_code_for_unary_op_term(node)
+            # Still need ArrayAccess and SubroutineCall
+
+    def generate_vm_code_for_binary_operator(self, operator_token: Token) -> str:
+        match operator_token.value:
+            case "+":
+                return self.vm_writer.write_arithmetic("add")
+            case "-":
+                return self.vm_writer.write_arithmetic("sub")
+            case "*":
+                return self.vm_writer.write_call("multiply", 2)
+            case "/":
+                return self.vm_writer.write_call("divide", 2)
+            case "&":
+                return self.vm_writer.write_arithmetic("and")
+            case "|":
+                return self.vm_writer.write_arithmetic("or")
+            case "<":
+                return self.vm_writer.write_arithmetic("lt")
+            case ">":
+                return self.vm_writer.write_arithmetic("gt")
+            case "=":
+                return self.vm_writer.write_arithmetic("eq")
+            case _:
+                raise ValueError(f"Unknown operator {operator_token.value}")
+
+    def generate_vm_code_for_expression(self, node: Expression) -> str:
+        result = ""
+        first_term = node.first_term
+        other_terms = node.other_terms
+        result += self.generate_vm_code_for_term(first_term)
+        for operator_token, term in other_terms:
+            result += self.generate_vm_code_for_term(term)
+            result += self.generate_vm_code_for_binary_operator(operator_token)
+        return result
+
+    # Array access
+
+    # Subroutine call
+
+    # Do statement
+
+    # Return statement
+
+    # Let statement
+
+    # If statement
+
+    # While statement
+
+    # Statement
+
+    # Statements
+
+    # varDec
+
+    # subroutineBody
+
+    # parameterList (?? Does the compiler ever use this?)
+
+    # subroutineDec
+
+    # classVarDec
+
+    # class
 
 
 # Functions related to xml output
