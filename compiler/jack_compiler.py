@@ -1247,11 +1247,13 @@ class VMGenerator:
     vm_writer: VmWriter
     class_symbol_table: SymbolTable
     subroutine_symbol_table: SymbolTable
+    current_class_name: str
 
     def __init__(self):
         self.vm_writer = VmWriter()
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
+        self.current_class_name = ""
 
     def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
         return self.vm_writer.write_push("constant", node.token.value)
@@ -1347,6 +1349,10 @@ class VMGenerator:
                 return self.generate_vm_code_for_parenthetical_expression(node)
             case UnaryOpTerm():
                 return self.generate_vm_code_for_unary_op_term(node)
+            case ArrayAccess():
+                return self.generate_vm_code_for_array_access(node)
+            case SubroutineCall():
+                return self.generate_vm_code_for_subroutine_call(node)
             # Still need ArrayAccess and SubroutineCall
 
     def generate_vm_code_for_binary_operator(self, operator_token: Token) -> str:
@@ -1356,9 +1362,9 @@ class VMGenerator:
             case "-":
                 return self.vm_writer.write_arithmetic("sub")
             case "*":
-                return self.vm_writer.write_call("multiply", 2)
+                return self.vm_writer.write_call("Math.multiply", 2)
             case "/":
-                return self.vm_writer.write_call("divide", 2)
+                return self.vm_writer.write_call("Math.divide", 2)
             case "&":
                 return self.vm_writer.write_arithmetic("and")
             case "|":
@@ -1382,9 +1388,141 @@ class VMGenerator:
             result += self.generate_vm_code_for_binary_operator(operator_token)
         return result
 
-    # Array access
+    def generate_vm_code_for_expression_list(self, node: ExpressionList) -> str:
+        result = ""
+        for expression in node.expressions:
+            result += self.generate_vm_code_for_expression(expression)
+        return result
 
-    # Subroutine call
+    def generate_vm_code_for_subroutine_call(self, node: SubroutineCall) -> str:
+        # Possibilities for receiver name
+        #   1. Receiver is an object name in one of the symbol tables
+        #         - Push address of object (parameter 0)
+        #         - Push each expression in expression_list
+        #         - Class name is type from symbol table
+        #         - Call ClassName.FunctionName 1 + len(expression_list)
+        #   2. Receiver is None, so it refers to the current class
+        #         - Push pointer 0 (address of current object) (param 0)
+        #         - Push each expression in expression_list
+        #         - Class name is self.current_class_name (set in compile_class)
+        #         - Call ClassName.FunctionName 1 + len(expression_list)
+        #   3. Receiver is a class name, so it refers to a static method
+        #         - Push each expression in expression list
+        #         - Class name is receiver
+        #         - Call ClassName.FunctionName len(expression_list)
+        result = ""
+        receiver_name = (
+            node.receiver_name_token.value if node.receiver_name_token else None
+        )
+        if receiver_name == None:
+            # Subroutine a method of the current object
+            # Push 'this' (address of current object) as parameter 0
+            result += self.vm_writer.write_push("pointer", 0)
+
+            # Push each expression in expression_list
+            result += self.generate_vm_code_for_expression_list(node.expression_list)
+
+            # Class name is self.current_class_name
+            full_name_to_call = (
+                f"{self.current_class_name}.{node.subroutine_name_token.value}"
+            )
+
+            result += self.vm_writer.write_call(
+                full_name_to_call, len(node.expression_list.expressions) + 1
+            )
+        elif receiver_name in self.subroutine_symbol_table.records:
+            # Subroutine is a method of an object stored in a local
+            # variable or passed in as an argument
+            #
+            # receiver_name names either an argument or a local variable
+            # kind is argument or local. At the index of the kind segment,
+            # the object's base address is stored as a pointer.
+            # Push the address of the object as parameter 0
+            receiver_kind = self.subroutine_symbol_table.kind_of(receiver_name)
+            if receiver_kind not in ["argument", "local"]:
+                raise ValueError(
+                    f"Receiver {receiver_name} must be an argument or a local variable, not {receiver_kind}"
+                )
+            receiver_index = self.subroutine_symbol_table.index_of(receiver_name)
+            result += self.vm_writer.write_push(receiver_kind, receiver_index)
+
+            # Push each expression in expression_list
+            result += self.generate_vm_code_for_expression_list(node.expression_list)
+
+            # Class name is type from symbol table
+            receiver_type = self.subroutine_symbol_table.type_of(receiver_name)
+            full_name_to_call = f"{receiver_type}.{node.subroutine_name_token.value}"
+
+            result += self.vm_writer.write_call(
+                full_name_to_call, len(node.expression_list.expressions) + 1
+            )
+        elif receiver_name in self.class_symbol_table.records:
+            # Subroutine is a method of an object stored as a static or
+            # field variable of the current class.
+            receiver_kind = self.class_symbol_table.kind_of(receiver_name)
+            if receiver_kind not in ["static", "field"]:
+                raise ValueError(
+                    f"Receiver {receiver_name} must be a static or field variable, not {receiver_kind}"
+                )
+
+            # If kind is static, address of object is stored in static segment of memory
+            # If kind is field, address of object is stored in this segment of memory
+            if receiver_kind == "field":
+                receiver_kind = "this"
+            receiver_index = self.class_symbol_table.index_of(receiver_name)
+            result += self.vm_writer.write_push(receiver_kind, receiver_index)
+
+            # Push each expression in expression_list
+            result += self.generate_vm_code_for_expression_list(node.expression_list)
+
+            # Class name is type from symbol table
+            receiver_type = self.class_symbol_table.type_of(receiver_name)
+            full_name_to_call = f"{receiver_type}.{node.subroutine_name_token.value}"
+
+            result += self.vm_writer.write_call(
+                full_name_to_call, len(node.expression_list.expressions) + 1
+            )
+        else:
+            # Subroutine is a class-level function, not a method
+
+            # Push each expression in expression_list
+            result += self.generate_vm_code_for_expression_list(node.expression_list)
+
+            # Class name is receiver_name
+            full_name_to_call = f"{receiver_name}.{node.subroutine_name_token.value}"
+
+            # Note: no base address to push, so do not call with "+ 1" arguments
+            result += self.vm_writer.write_call(
+                full_name_to_call, len(node.expression_list.expressions)
+            )
+
+        return result
+
+    # Array access (rvalue ... lvalue array access handled in let statement)
+    def generate_vm_code_for_array_access(self, node: ArrayAccess) -> str:
+        # Get base address of array from one of the symbol tables
+        array_name = node.array_name_token.value
+        array_kind = self.subroutine_symbol_table.kind_of(array_name)
+        array_base_address_index = self.class_symbol_table.index_of(array_name)
+        if array_kind == None:
+            array_kind = self.class_symbol_table.kind_of(array_name)
+            array_base_address_index = self.class_symbol_table.index_of(array_name)
+            if array_kind == "field":
+                array_kind = "this"
+            if array_kind == None:
+                raise ValueError(
+                    f"Array {array_name} not found in symbol tables. Missing declaration?"
+                )
+        result = self.vm_writer.write_push(array_kind, array_base_address_index)
+        result += self.generate_vm_code_for_expression(node.array_index)
+        result += self.vm_writer.write_arithmetic("add")
+
+        # Stack now as base address of the array element we want
+        # Pop the address to set THAT base address, then push that[0] on stack
+        result += self.vm_writer.write_pop("pointer", 1)
+        result += self.vm_writer.write_push("that", 0)
+
+        return result
 
     # Do statement
 
