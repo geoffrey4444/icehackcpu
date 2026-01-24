@@ -1066,6 +1066,12 @@ arithmetic_commands = [
     "not",
 ]
 
+SymbolRecordKind = Literal[
+    "static",
+    "field",
+    "argument",
+    "variable",
+]
 
 class WriteVmCode:
     @staticmethod
@@ -1176,6 +1182,51 @@ class WriteVmCode:
         return result
 
 # SymbolTable class: manage lookup for addresses of identifiers
+
+# 
+
+@dataclass
+class SymbolTableRecord:
+    type: str
+    kind: SymbolRecordKind
+    index: int
+
+@dataclass
+class SymbolTable:
+    counts_by_kind: dict[SymbolRecordKind, int] = field(default_factory=dict)
+    records: dict[str, SymbolTableRecord] = field(default_factory=dict)
+    def reset(self):
+        self.counts_by_kind = {
+            "static": 0,
+            "field": 0,
+            "argument": 0,
+            "variable": 0,
+        }
+        self.records = {}
+
+    def __post_init__(self):
+        self.reset()
+
+    def define(self, symbol_name: str, symbol_type: str, kind: SymbolRecordKind):
+        index_for_new_symbol = self.counts_by_kind[kind]
+        self.counts_by_kind[kind] += 1
+        self.records[symbol_name] = SymbolTableRecord(type=symbol_type, kind=kind, index=index_for_new_symbol)
+
+    def var_count(self, kind: SymbolRecordKind) -> int:
+        return self.counts_by_kind[kind]
+    
+    def kind_of(self, symbol_name: str) -> Optional[SymbolRecordKind]:
+        record = self.records.get(symbol_name, None)
+        return record.kind if record else None
+    
+    def type_of(self, symbol_name: str) -> Optional[str]:
+        record = self.records.get(symbol_name, None)
+        return record.type if record else None
+    
+    def index_of(self, symbol_name: str) -> Optional[int]:
+        record = self.records.get(symbol_name, None)
+        return record.index if record else None
+
 
 # VMWriter: writes different VM code to strings
 
