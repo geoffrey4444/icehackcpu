@@ -1248,6 +1248,7 @@ class VMGenerator:
     class_symbol_table: SymbolTable
     subroutine_symbol_table: SymbolTable
     current_class_name: str
+    current_subroutine_kind: str
 
     def __init__(self):
         self.vm_writer = VmWriter()
@@ -1256,7 +1257,7 @@ class VMGenerator:
         self.current_class_name = ""
 
     def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
-        return self.vm_writer.write_push("constant", node.token.value)
+        return self.vm_writer.write_push("constant", int(node.token.value))
 
     def generate_vm_code_for_keyword_constant(self, node: KeywordConstant) -> str:
         result = ""
@@ -1353,7 +1354,6 @@ class VMGenerator:
                 return self.generate_vm_code_for_array_access(node)
             case SubroutineCall():
                 return self.generate_vm_code_for_subroutine_call(node)
-            # Still need ArrayAccess and SubroutineCall
 
     def generate_vm_code_for_binary_operator(self, operator_token: Token) -> str:
         match operator_token.value:
@@ -1401,12 +1401,16 @@ class VMGenerator:
         #         - Push each expression in expression_list
         #         - Class name is type from symbol table
         #         - Call ClassName.FunctionName 1 + len(expression_list)
-        #   2. Receiver is None, so it refers to the current class
+        #   2. Receiver is None, currently in method
         #         - Push pointer 0 (address of current object) (param 0)
         #         - Push each expression in expression_list
         #         - Class name is self.current_class_name (set in compile_class)
         #         - Call ClassName.FunctionName 1 + len(expression_list)
-        #   3. Receiver is a class name, so it refers to a static method
+        #   3. Receiver is None, currently in function or constructor:
+        #         - Push each expression in expression_list
+        #         - Class name is self.current_class_name (set in compile_class)
+        #         - Call ClassName.FunctionName len(expression_list)
+        #   4. Receiver is a class name, so it refers to a static method
         #         - Push each expression in expression list
         #         - Class name is receiver
         #         - Call ClassName.FunctionName len(expression_list)
@@ -1415,9 +1419,16 @@ class VMGenerator:
             node.receiver_name_token.value if node.receiver_name_token else None
         )
         if receiver_name == None:
-            # Subroutine a method of the current object
-            # Push 'this' (address of current object) as parameter 0
-            result += self.vm_writer.write_push("pointer", 0)
+            number_of_arguments_to_push = len(node.expression_list.expressions)
+            if self.current_subroutine_kind == "method":
+                # Subroutine a method of the current object
+                # Push 'this' (address of current object) as parameter 0
+                result += self.vm_writer.write_push("pointer", 0)
+                number_of_arguments_to_push += 1
+            elif self.current_subroutine_kind not in ["function", "constructor"]:
+                raise ValueError(
+                    f"Unexpected subroutine kind {self.current_subroutine_kind} in subroutine call with no receiver"
+                )
 
             # Push each expression in expression_list
             result += self.generate_vm_code_for_expression_list(node.expression_list)
@@ -1428,8 +1439,9 @@ class VMGenerator:
             )
 
             result += self.vm_writer.write_call(
-                full_name_to_call, len(node.expression_list.expressions) + 1
+                full_name_to_call, number_of_arguments_to_push
             )
+
         elif receiver_name in self.subroutine_symbol_table.records:
             # Subroutine is a method of an object stored in a local
             # variable or passed in as an argument
@@ -1503,7 +1515,7 @@ class VMGenerator:
         # Get base address of array from one of the symbol tables
         array_name = node.array_name_token.value
         array_kind = self.subroutine_symbol_table.kind_of(array_name)
-        array_base_address_index = self.class_symbol_table.index_of(array_name)
+        array_base_address_index = self.subroutine_symbol_table.index_of(array_name)
         if array_kind == None:
             array_kind = self.class_symbol_table.kind_of(array_name)
             array_base_address_index = self.class_symbol_table.index_of(array_name)
