@@ -1304,7 +1304,7 @@ class VMGenerator:
         )
         result += self.vm_writer.write_call("String.new", 1)
         for char in text:
-            if 0 <= ord(char) <= 255:
+            if not (0 <= ord(char) <= 255):
                 raise ValueError(
                     f"Unsupported non-ASCII character {char} in string constant"
                 )
