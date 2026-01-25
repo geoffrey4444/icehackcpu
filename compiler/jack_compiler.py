@@ -2,7 +2,6 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
-from tkinter import Variable
 from typing import Literal, Optional, Union
 import xml.etree.ElementTree as et
 
@@ -1449,12 +1448,14 @@ class VMGenerator:
         )
         if receiver_name == None:
             number_of_arguments_to_push = len(node.expression_list.expressions)
-            if self.current_subroutine_kind == "method":
-                # Subroutine a method of the current object
+            if self.current_subroutine_kind in ["method", "constructor"]:
+                # Subroutine a method of the current object or a
+                # constructor: both have valid (this) that must be parameter 0
+                # of the call
                 # Push 'this' (address of current object) as parameter 0
                 result += self.vm_writer.write_push("pointer", 0)
                 number_of_arguments_to_push += 1
-            elif self.current_subroutine_kind not in ["function", "constructor"]:
+            elif self.current_subroutine_kind not in ["function"]:
                 raise ValueError(
                     f"Unexpected subroutine kind {self.current_subroutine_kind} in subroutine call with no receiver"
                 )
