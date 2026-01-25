@@ -1249,6 +1249,7 @@ class VMGenerator:
     subroutine_symbol_table: SymbolTable
     current_class_name: str
     current_subroutine_kind: str
+    label_counter: int
 
     def __init__(self):
         self.vm_writer = VmWriter()
@@ -1256,6 +1257,7 @@ class VMGenerator:
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
         self.current_subroutine_kind = ""
+        self.label_counter = 0
 
     def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
         return self.vm_writer.write_push("constant", int(node.token.value))
@@ -1550,19 +1552,196 @@ class VMGenerator:
 
         return result
 
-    # Do statement
-
     # Return statement
-
-    # Let statement
+    def generate_vm_code_for_return_statement(self, node: ReturnStatement) -> str:
+        result = ""
+        if node.expression != None:
+            result += self.generate_vm_code_for_expression(node.expression)
+        else:
+            # No return result; convention is to return 0 in that case
+            result += self.vm_writer.write_push("constant", 0)
+        result += self.vm_writer.write_return()
+        return result
 
     # If statement
+    def generate_vm_code_for_if_statement(self, node: IfStatement) -> str:
+        result = ""
+        # Start by putting the result of the condition on the stack
+        result += self.generate_vm_code_for_expression(node.condition)
+        # Book suggests negating the condition. The idea is to jump to else if
+        # condition is false, otherwise keep going for the if statements.
+        # But ChatGPT points out that this fails of you ever have a condition
+        # neither true nor false. So instead, we'll just use 3 labels.
+        true_label = f"IF_TRUE_{self.label_counter}"
+        false_label = f"IF_FALSE_{self.label_counter}"
+        end_label = f"IF_END_{self.label_counter}"
+        self.label_counter += 1
+
+        # Goto true_label if condition is true, false_label otherwise
+        result += self.vm_writer.write_if_goto(true_label)
+        result += self.vm_writer.write_goto(false_label)
+
+        # Next, the then statements (condition is true)
+        result += self.vm_writer.write_label(true_label)
+        result += self.generate_vm_code_for_statements(node.then_statements)
+        result += self.vm_writer.write_goto(end_label)
+
+        # Next, the else statements (condition is false), if any
+        result += self.vm_writer.write_label(false_label)
+        if node.else_statements != None:
+            result += self.generate_vm_code_for_statements(node.else_statements)
+
+        # Output the label IF_END_N
+        result += self.vm_writer.write_label(end_label)
+
+        return result
 
     # While statement
+    def generate_vm_code_for_while_statement(self, node: WhileStatement) -> str:
+        result = ""
+        # First, set the label to return to
+        start_label = f"WHILE_START_{self.label_counter}"
+        true_label = f"WHILE_TRUE_{self.label_counter}"
+        end_label = f"WHILE_END_{self.label_counter}"
+        self.label_counter += 1
+
+        # Evaluate the condition
+        result += self.vm_writer.write_label(start_label)
+        result += self.generate_vm_code_for_expression(node.condition)
+
+        # If the condition is true, jump to true label (do the body statements)
+        # If false, loop is done; jump to end
+        result += self.vm_writer.write_if_goto(true_label)
+        result += self.vm_writer.write_goto(end_label)
+
+        # Generate vm code for the body statements
+        result += self.vm_writer.write_label(true_label)
+        result += self.generate_vm_code_for_statements(node.body)
+
+        # Jump back to start of the while loop
+        result += self.vm_writer.write_goto(start_label)
+
+        # Output the label WHILE_END_N
+        result += self.vm_writer.write_label(end_label)
+
+        return result
+
+    # Do statement
+    # Do a system call and ignore the result
+    def generate_vm_code_for_do_statement(self, node: DoStatement) -> str:
+        result = ""
+        result += self.generate_vm_code_for_subroutine_call(node.subroutine_call)
+        # Pop to temp 0 to ignore the subroutine's return value
+        result += self.vm_writer.write_pop("temp", 0)
+        return result
+
+    # Let statement
+    def generate_vm_code_for_let_statement(self, node: LetStatement) -> str:
+        result = ""
+        # First, put the r-value (RHS expression) on the stack
+        result += self.generate_vm_code_for_expression(node.expression)
+
+        # Second, look up the l-value variable name in the symbol tables
+        variable_name = node.var_name_token.value
+        variable_kind = self.subroutine_symbol_table.kind_of(variable_name)
+        variable_base_address_index = self.subroutine_symbol_table.index_of(
+            variable_name
+        )
+        if variable_kind == None:
+            variable_kind = self.class_symbol_table.kind_of(variable_name)
+            if variable_kind == None:
+                raise ValueError(
+                    f"Variable {variable_name} not found in symbol tables. Missing declaration?"
+                )
+            variable_base_address_index = self.class_symbol_table.index_of(
+                variable_name
+            )
+
+        # Next, pop the result to the appropriate place...which depends
+        # on if the optional array_index is specified
+        if node.array_index == None:
+            # No array index, so pop to wherever the variable is stored in RAM
+            if variable_kind == "local":
+                result += self.vm_writer.write_pop("local", variable_base_address_index)
+            elif variable_kind == "argument":
+                result += self.vm_writer.write_pop(
+                    "argument", variable_base_address_index
+                )
+            elif variable_kind == "static":
+                result += self.vm_writer.write_pop(
+                    "static", variable_base_address_index
+                )
+            elif variable_kind == "field":
+                result += self.vm_writer.write_pop("this", variable_base_address_index)
+            else:
+                raise ValueError(
+                    f"Unexpected variable kind {variable_kind} for variable {variable_name}"
+                )
+        else:
+            # Array index, so we must add this index to the base address to get
+            # the address to pop to
+            # Start by saving the top value of the stack, the r-value
+            result += self.vm_writer.write_pop("temp", 0)
+
+            # Next, figure out the target address. For an array,
+            # the entry in local/argument/static/field is the base address
+            # push that onto the stack for starters
+            if variable_kind == "local":
+                result += self.vm_writer.write_push(
+                    "local", variable_base_address_index
+                )
+            elif variable_kind == "argument":
+                result += self.vm_writer.write_push(
+                    "argument", variable_base_address_index
+                )
+            elif variable_kind == "static":
+                result += self.vm_writer.write_push(
+                    "static", variable_base_address_index
+                )
+            elif variable_kind == "field":
+                result += self.vm_writer.write_push("this", variable_base_address_index)
+            else:
+                raise ValueError(
+                    f"Unexpected variable kind {variable_kind} for variable {variable_name}"
+                )
+            # Now add the offset to get the address
+            result += self.generate_vm_code_for_expression(node.array_index)
+            result += self.vm_writer.write_arithmetic("add")
+            # We have the address; update THAT by pushing to pointer 1
+            result += self.vm_writer.write_pop("pointer", 1)
+
+            # THAT segment index 0 is now where we want to push our result
+            # Push the saved result to the stack and then pop it to that 0
+            # (i.e., pop it to the target address)
+            result += self.vm_writer.write_push("temp", 0)
+            result += self.vm_writer.write_pop("that", 0)
+
+        return result
 
     # Statement
+    def generate_vm_code_for_statement(self, node: Statement) -> str:
+        result = ""
+        match node:
+            case ReturnStatement():
+                result += self.generate_vm_code_for_return_statement(node)
+            case IfStatement():
+                result += self.generate_vm_code_for_if_statement(node)
+            case WhileStatement():
+                result += self.generate_vm_code_for_while_statement(node)
+            case LetStatement():
+                result += self.generate_vm_code_for_let_statement(node)
+            case DoStatement():
+                result += self.generate_vm_code_for_do_statement(node)
+            case _:
+                raise ValueError(f"Unexpected statement type {type(node)}")
+        return result
 
     # Statements
+    def generate_vm_code_for_statements(self, node: Statements) -> str:
+        result = ""
+        for statement in node.statements:
+            result += self.generate_vm_code_for_statement(statement)
+        return result
 
     # varDec
 
