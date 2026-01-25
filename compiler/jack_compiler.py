@@ -2,6 +2,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
+from tkinter import Variable
 from typing import Literal, Optional, Union
 import xml.etree.ElementTree as et
 
@@ -1219,6 +1220,8 @@ class SymbolTable:
         self.reset()
 
     def define(self, symbol_name: str, symbol_type: str, kind: SymbolRecordKind):
+        if symbol_name in self.records:
+            raise ValueError(f"Symbol {symbol_name} already defined in symbol table")
         index_for_new_symbol = self.counts_by_kind[kind]
         self.counts_by_kind[kind] += 1
         self.records[symbol_name] = SymbolTableRecord(
@@ -1744,20 +1747,135 @@ class VMGenerator:
         return result
 
     # varDec
+    # This populates the symbol table for local variables.
+    # All of them are "local" in the subroutine table
+    def populate_symbol_table_for_variable_declaration(self, node: VariableDeclaration):
+        type_token = node.type_token
+        kind = "local"
+        self.subroutine_symbol_table.define(
+            node.first_var_name_token.value, type_token.value, kind
+        )
+        for var_name_token in node.other_var_name_tokens:
+            self.subroutine_symbol_table.define(
+                var_name_token.value, type_token.value, kind
+            )
+
+        return
 
     # subroutineBody
+    # Note: symbol table for local variable declarations populated in
+    # generate_vm_code_for_subroutine_declaration
+    def generate_vm_code_for_subroutine_body(self, node: SubroutineBody) -> str:
+        result = self.generate_vm_code_for_statements(node.statements)
+        return result
 
-    # parameterList (?? Does the compiler ever use this?)
+    # parameterList
+    # Defines "argument" symbols in subroutine symbol table
+    def populate_symbol_table_for_parameter_list(self, node: ParameterList):
+        # If current function is kind == "method", put "this" into the subroutine
+        # symbol table first
+        kind = "argument"
+
+        if self.current_subroutine_kind == "method":
+            self.subroutine_symbol_table.define(
+                "this", self.current_class_name, "argument"
+            )
+
+        for parameter in node.parameters:
+            self.subroutine_symbol_table.define(
+                parameter.variable_name_token.value, parameter.type_token.value, kind
+            )
+
+        return
 
     # subroutineDec
+    def generate_vm_code_for_subroutine_declaration(
+        self, node: SubroutineDeclaration
+    ) -> str:
+        # Starting new subroutine, to reset symbol table and update
+        # current subroutine kind
+        self.current_subroutine_kind = node.subroutine_kind_token.value
+
+        self.subroutine_symbol_table.reset()
+
+        self.populate_symbol_table_for_parameter_list(node.parameter_list)
+        for variable_declaration in node.subroutine_body.variable_declarations:
+            self.populate_symbol_table_for_variable_declaration(variable_declaration)
+
+        result = ""
+        result += self.vm_writer.write_function(
+            f"{self.current_class_name}.{node.name_token.value}",
+            self.subroutine_symbol_table.var_count("local"),
+        )
+
+        # Prolog for constructor or method
+        if self.current_subroutine_kind == "constructor":
+            # Push the number of fields to the stack; this is how much RAM
+            # the constructor must allocate
+            result += self.vm_writer.write_push(
+                "constant", self.class_symbol_table.var_count("field")
+            )
+            # call Memory.alloc(number_of_16_bit_addresses_to_allocate), which takes one argument
+            result += self.vm_writer.write_call("Memory.alloc", 1)
+            # set THIS to the result value from Memory.alloc
+            result += self.vm_writer.write_pop("pointer", 0)
+        elif self.current_subroutine_kind == "method":
+            # By convention, parameter 0 for methods is the address of the method's object
+            # This is enforced in generate_vm_code_for_subroutine_call()
+            # Here is where we use that parameter. We push argument 0,
+            # then pop pointer 0 to set THIS to the correct address.
+            result += self.vm_writer.write_push("argument", 0)
+            result += self.vm_writer.write_pop("pointer", 0)
+        elif self.current_subroutine_kind == "function":
+            # Functions have no prolog
+            pass
+        else:
+            raise ValueError(
+                f"Unexpected subroutine kind {self.current_subroutine_kind} in subroutine declaration prolog"
+            )
+
+        # Finally, generate vm code for the subroutine body
+        # i.e., the statements in the body (since symbol table already handled)
+        result += self.generate_vm_code_for_subroutine_body(node.subroutine_body)
+
+        return result
 
     # classVarDec
+    def populate_symbol_table_for_class_variable_declaration(
+        self, node: ClassVariableDeclaration
+    ):
+        kind = node.class_variable_kind_token.value
+        type_token = node.type_token
+        self.class_symbol_table.define(
+            node.first_var_name_token.value, type_token.value, kind
+        )
+        for var_name_token in node.other_var_name_tokens:
+            self.class_symbol_table.define(var_name_token.value, type_token.value, kind)
+        return
 
     # class
+    def generate_vm_code_for_class(self, node: Class) -> str:
+        self.current_class_name = node.name_token.value
+        self.class_symbol_table.reset()
+
+        result = ""
+
+        # Populate symbol table for class variable declarations
+        for class_variable_declaration in node.class_variable_declarations:
+            self.populate_symbol_table_for_class_variable_declaration(
+                class_variable_declaration
+            )
+
+        for subroutine_declaration in node.subroutine_declarations:
+            result += self.generate_vm_code_for_subroutine_declaration(
+                subroutine_declaration
+            )
+
+        return result
 
 
 # Functions related to xml output
-def xml_from_token_list(tokens):
+def xml_from_token_list(tokens):  #
     root = et.Element("tokens")
     for token in tokens:
         token_element = et.SubElement(root, token.type)
