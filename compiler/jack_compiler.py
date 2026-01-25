@@ -1075,7 +1075,7 @@ SymbolRecordKind = Literal[
 ]
 
 
-class VmWriter:
+class VMWriter:
     @staticmethod
     def write_push(segment: str, index: int, include_newline: bool = True) -> str:
         if segment not in segments:
@@ -1247,7 +1247,7 @@ class SymbolTable:
 # VMGenerator: walks the JackCompiler output tree,
 # writing vm code for the different constructs
 class VMGenerator:
-    vm_writer: VmWriter
+    vm_writer: VMWriter
     class_symbol_table: SymbolTable
     subroutine_symbol_table: SymbolTable
     current_class_name: str
@@ -1255,12 +1255,22 @@ class VMGenerator:
     label_counter: int
 
     def __init__(self):
-        self.vm_writer = VmWriter()
+        self.vm_writer = VMWriter()
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
         self.current_subroutine_kind = ""
         self.label_counter = 0
+
+    def reset(self):
+        self.class_symbol_table.reset()
+        self.subroutine_symbol_table.reset()
+        self.current_class_name = ""
+        self.current_subroutine_kind = ""
+
+        # Do not reset label_counter, so labels are unique
+        # across different files/classes
+        return
 
     def generate_vm_code_for_integer_constant(self, node: IntegerConstant) -> str:
         return self.vm_writer.write_push("constant", int(node.token.value))
@@ -2292,6 +2302,7 @@ def main():
     args = parser.parse_args()
 
     tokens = []
+    vm_generator = VMGenerator()
     for input_file in args.input_files:
         current_file_path = Path(input_file)
         current_file_stem = current_file_path.stem
@@ -2313,17 +2324,28 @@ def main():
         jack_compiler = JackCompiler(tokens=tokens)
         compiled_class = jack_compiler.compile_class()
 
+        # Output the raw compiled dataclass hierarchy
         output_file_path_raw = current_file_directory / f"{current_file_stem}.raw"
         with open(output_file_path_raw, "w") as output_file:
             output_file.write(str(compiled_class))
             print(f"  Output raw to {output_file_path_raw}")
 
+        # Output the XML representation of the compiled dataclass hierarchy
+        # for debugging or comparison with examples of compiled jack code
         output_file_path_xml = current_file_directory / f"{current_file_stem}.xml"
         with open(output_file_path_xml, "w") as output_file:
             output_file.write(
                 EmitJackParsedXml().node_to_string(compiled_class).replace("\n", "\r\n")
             )
             print(f"  Output XML to {output_file_path_xml}")
+
+        # Output the VM code
+        output_file_path_vm = current_file_directory / f"{current_file_stem}.vm"
+        with open(output_file_path_vm, "w") as output_file:
+            vm_code_to_output = vm_generator.generate_vm_code_for_class(compiled_class)
+            output_file.write(vm_code_to_output.replace("\n", "\r\n"))
+            vm_generator.reset()
+            print(f"  Output VM code to {output_file_path_vm}")
 
     # print xml with windows line endings to match test file from nand2tetris
     # print(xml_from_token_list(tokens).replace("\n", "\r\n"), end="\r\n")
