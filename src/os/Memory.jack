@@ -1,0 +1,249 @@
+class Memory {
+  static int heap_base_address;
+  static int heap_size;
+  static int first_free_heap_block_address;
+  static int max_heap_address;
+
+  function void init() {
+    var Array ram;
+    let ram = 0;
+    
+    let heap_base_address = 2048;
+    let heap_size = 14336;
+    let first_free_heap_block_address = heap_base_address;
+    let max_heap_address = heap_base_address + heap_size - 1;
+  
+    let ram[heap_base_address] = heap_size;
+    let ram[heap_base_address + 1] = 0;
+    return;
+  } 
+
+  // Note: array types are implemented in the compiler
+  // so that you can just declare an Array variable and 
+  // set it to a base address (like 0) to have array
+  // access to anywhere in RAM.
+  function int peek(int address) {
+    var Array ram;
+    let ram = 0;
+    return ram[address];
+  }
+
+  function void poke(int address, int new_value) {
+    var Array ram;
+    let ram = 0;
+    let ram[address] = new_value;
+    return;
+  }
+
+  // Find the first block big enough to hold `size`.
+  // If not found, just infinite loop for now (later print error)
+  // When found at base address base, allocate as follows:
+  //   1. base[size + 1] = block[0] - size - 1 // size of block
+  //   2. base[size + 2] = block[1] // address of next free block
+  //   3. base[0] = size
+  //   4. return block = base + 1
+  function Array alloc(int size) {
+    var Array ram;
+    var int current_base_address, new_base_address;
+
+    if (~(size > 0)) {
+      // Size can't be negative or zero. No reporting implemeneted yet; halt.
+      while (true) { }
+    }
+
+    if (first_free_heap_block_address = 0) {
+      // Memory full; can't alloc. No reporting implemeneted yet; halt.
+      while (true) { }
+    }
+
+    let ram = 0;
+
+    // Check the first block
+    let current_base_address = first_free_heap_block_address;    
+
+    // First, check if the first_free_heap_block_address is in the allowed bounds of the heap. If not, RAM is full; fail.
+    // Once error reporting is implemented, report an error; for now, just halt with an infinite loop
+    if ((first_free_heap_block_address < heap_base_address) | (first_free_heap_block_address > max_heap_address)) {
+      // Fail ... out of RAM
+      while (true) { }
+    }
+
+    let new_base_address = ram[first_free_heap_block_address + 1];
+    
+    // Next, is it an exact fit? If so, then claim the whole block
+    if (ram[current_base_address] = size + 1) {            
+      let first_free_heap_block_address = new_base_address;
+      return current_base_address + 1;
+    }
+
+    // Next, is first block more than enough space? I.e. at least size + 3.
+    // Why size + 3? size data words, 1 header word for allocated block, need
+    // at least 2 header words for remaining free block after splitting.
+    if (ram[current_base_address] >= size + 3) {
+      // first free block can hold the size with room to spare, so split it
+      // Next "block" consists of size bytes of data + 1 to store its size
+      // Shift size and next over by size + 1, and reduce size by size + 1
+      let ram[current_base_address + size + 1] = ram[current_base_address] - size - 1;
+      let ram[current_base_address + size + 2] = ram[current_base_address + 1];
+
+      // Allocate: set first address to the size of block including the 
+      // first address storing its size. 
+      // size to new base address of the first free block.
+      let ram[current_base_address] = size + 1;
+
+      // Update the first free block
+      let first_free_heap_block_address = first_free_heap_block_address + size + 1;
+
+      // Return the address where the data of the allocated object starts
+      return current_base_address + 1;
+    } else {
+      // Loop over all free blocks
+      while (~(new_base_address = 0)) {
+        // Does the next block (which is at new_base_address) have exactly enough space?
+        if (ram[new_base_address] = size + 1) {
+          // Claim the whole next block
+          // Set current block's next to next block's next
+          let ram[current_base_address + 1] = ram[new_base_address + 1];
+          
+          // Return the entire next block
+          return new_base_address + 1;
+        }
+
+        // Does the block have more than enough space?
+        if (ram[new_base_address] >= size + 3) {
+          // More than enough space, so split the block
+          let ram[current_base_address + 1] = new_base_address + size + 1;
+          
+          // Reduce the free block by size + 1
+          let ram[new_base_address + size + 1] = ram[new_base_address] - size - 1;
+          let ram[new_base_address + size + 2] = ram[new_base_address + 1];
+
+          // Allocate: set first address to size
+          let ram[new_base_address] = size + 1;
+        
+          return new_base_address + 1;
+        }
+        // This block too small to fit size; move on to the next block
+        let current_base_address = new_base_address; // can't fit
+        let new_base_address = ram[current_base_address + 1]; // might fit
+      }
+      // Failure: no found address. Throw an error. For now, until I implemented
+      // error throwing, just do an infinite loop to halt the program.
+      while (true) { }
+    }
+  }
+
+  // Dealloc
+  function void dealloc(Array object) {
+    var Array ram;
+    var int current_base_address, new_base_address, object_base_address;
+    var boolean merge_with_previous, merge_with_next;
+
+    // Avoid underflow: if object = 0, just return
+    // Note: object should never be at address zero, which is outside
+    // of the heap
+    if (object = 0) {
+      // Something is wrong if you get here, halt the program
+      // Later, print an error message after error reporting is implemented
+      while (true) { }
+      return;
+    }
+
+    let object_base_address = object - 1;
+
+    // If object is not in heap, halt the program (and once error reporting
+    // implemented, report an error)
+    if ((object_base_address < heap_base_address) | (object_base_address > max_heap_address)) {
+      while (true) { }
+      return;
+    }
+
+    let ram = 0;
+
+    // Object address is valid. Insert it into the linked list of 
+    // free blocks in order
+    let current_base_address = first_free_heap_block_address;
+    
+    // Special case: what if RAM is full, so first_free_heap_block_address is 0?
+    if (current_base_address = 0) {
+      // Just make the object the first free heap block address,
+      // and have no next free block
+      let first_free_heap_block_address = object_base_address;
+      let ram[first_free_heap_block_address + 1] = 0;
+      return;
+    }
+
+    // There is at least one existing free block of RAM
+    let new_base_address = ram[current_base_address + 1];
+
+    if (current_base_address > object_base_address) {
+      // merge or prepend
+      if (object_base_address + ram[object_base_address] = current_base_address) {
+        // merge
+        let ram[object] = ram[first_free_heap_block_address + 1];
+        let ram[object_base_address] = ram[object_base_address] + ram[first_free_heap_block_address];
+        let first_free_heap_block_address = object_base_address;
+      } else {
+        // prepend
+        let ram[object] = current_base_address;
+        let first_free_heap_block_address = object_base_address;
+      }      
+      return;
+    }
+
+    if ((current_base_address = object_base_address) | (new_base_address = object_base_address)) {
+      // somehow current object already disposed and in the list of free blocks; just return
+      return;
+    }
+
+    // current_base_address < object_base_address, so check remaining free blocks
+    while (~(new_base_address = 0)) {            
+      if (new_base_address > object_base_address) {
+        // current_base_address < object_base_address < new_base_address
+        // merge or append
+        let merge_with_previous = (current_base_address + ram[current_base_address]) = object_base_address;
+        let merge_with_next = (object_base_address + ram[object_base_address]) = new_base_address;
+
+        if (merge_with_previous & merge_with_next) {
+          // merge with both
+          let ram[current_base_address] = ram[current_base_address] + ram[object_base_address] + ram[new_base_address];
+          let ram[current_base_address + 1] = ram[new_base_address + 1];
+          return;
+        }
+
+        if (merge_with_previous) {
+          // merge with previous only
+          let ram[current_base_address] = ram[current_base_address] + ram[object_base_address];  
+          return;       
+        }
+
+        if (merge_with_next) {
+          // merge with next only
+          let ram[object_base_address] = ram[object_base_address] + ram[new_base_address];
+          let ram[current_base_address + 1] = object_base_address;          
+          let ram[object_base_address + 1] = ram[new_base_address + 1];
+          return;
+        }
+  
+        // don't merge at all
+        let ram[current_base_address + 1] = object_base_address;
+        let ram[object] = new_base_address;
+        return;
+      }
+
+      let current_base_address = new_base_address;
+      let new_base_address = ram[current_base_address + 1];      
+    }
+
+    // To get here, new_base_address is zero. So insert or merge at end
+    if ((current_base_address + ram[current_base_address]) = object_base_address) {
+      // merge at end
+      let ram[current_base_address] = ram[current_base_address] + ram[object_base_address];
+    } else {
+      // append at end
+      let ram[current_base_address + 1] = object_base_address;
+      let ram[object] = 0;
+    }
+    return;
+  }
+}
