@@ -48,15 +48,24 @@ class Memory {
 
     if (~(size > 0)) {
       // Size can't be negative or zero. No reporting implemeneted yet; halt.
-      while (true) { }
+      let ram[7994] = 7;
+      do Sys.halt();
     }
 
     if (first_free_heap_block_address = 0) {
       // Memory full; can't alloc. No reporting implemeneted yet; halt.
-      while (true) { }
+      let ram[7994] = 8;
+      do Sys.halt();
     }
 
     let ram = 0;
+
+    // Debug
+    let ram[7999] = 111;
+    let ram[7998] = first_free_heap_block_address;
+    let ram[7997] = size;
+    let ram[7996] = heap_base_address;
+    let ram[7995] = max_heap_address;
 
     // Check the first block
     let current_base_address = first_free_heap_block_address;    
@@ -65,13 +74,14 @@ class Memory {
     // Once error reporting is implemented, report an error; for now, just halt with an infinite loop
     if ((first_free_heap_block_address < heap_base_address) | (first_free_heap_block_address > max_heap_address)) {
       // Fail ... out of RAM
-      while (true) { }
+      let ram[7994] = 9;
+      do Sys.halt();
     }
 
     let new_base_address = ram[first_free_heap_block_address + 1];
     
     // Next, is it an exact fit? If so, then claim the whole block
-    if (ram[current_base_address] = size + 1) {            
+    if ((ram[current_base_address]) = (size + 1)) {            
       let first_free_heap_block_address = new_base_address;
       return current_base_address + 1;
     }
@@ -79,7 +89,10 @@ class Memory {
     // Next, is first block more than enough space? I.e. at least size + 3.
     // Why size + 3? size data words, 1 header word for allocated block, need
     // at least 2 header words for remaining free block after splitting.
-    if (ram[current_base_address] >= size + 3) {
+    let ram[7993] = current_base_address;
+    let ram[7992] = ram[current_base_address];
+    let ram[7991] = size + 3;
+    if (~(ram[current_base_address] < (size + 3))) {
       // first free block can hold the size with room to spare, so split it
       // Next "block" consists of size bytes of data + 1 to store its size
       // Shift size and next over by size + 1, and reduce size by size + 1
@@ -110,7 +123,7 @@ class Memory {
         }
 
         // Does the block have more than enough space?
-        if (ram[new_base_address] >= size + 3) {
+        if (~(ram[new_base_address] < (size + 3))) {
           // More than enough space, so split the block
           let ram[current_base_address + 1] = new_base_address + size + 1;
           
@@ -129,12 +142,14 @@ class Memory {
       }
       // Failure: no found address. Throw an error. For now, until I implemented
       // error throwing, just do an infinite loop to halt the program.
-      while (true) { }
+      let ram[7994] = 11;
+      do Sys.halt();
     }
+    return 0;
   }
 
   // Dealloc
-  function void dealloc(Array object) {
+  function void deAlloc(Array object) {
     var Array ram;
     var int current_base_address, new_base_address, object_base_address;
     var boolean merge_with_previous, merge_with_next;
@@ -145,7 +160,8 @@ class Memory {
     if (object = 0) {
       // Something is wrong if you get here, halt the program
       // Later, print an error message after error reporting is implemented
-      while (true) { }
+      let ram[7994] = 12;
+      do Sys.halt();
       return;
     }
 
@@ -154,7 +170,8 @@ class Memory {
     // If object is not in heap, halt the program (and once error reporting
     // implemented, report an error)
     if ((object_base_address < heap_base_address) | (object_base_address > max_heap_address)) {
-      while (true) { }
+      let ram[7994] = 13;
+      do Sys.halt();
       return;
     }
 

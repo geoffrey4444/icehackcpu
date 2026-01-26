@@ -1,0 +1,13 @@
+class Sys {
+  function void init() {
+    do Memory.init();
+    do Main.main();
+    do Sys.halt();
+    return;
+  }
+
+  function void halt () {
+    while (true) { }
+    return;
+  }
+}
