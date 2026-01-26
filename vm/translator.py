@@ -553,7 +553,6 @@ D=M
 D;JNE
 """
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -571,7 +570,19 @@ def main():
     label_counter = 0
     call_counter = 0
 
-    assembly_code = write_prolog() if args.write_prolog_and_epilog else ""
+    os_prolog = """
+// Set stack pointer to 256, start of stack (stack grows to higher addresses)
+@256
+D=A
+@SP
+M=D
+
+// Call Sys.init
+@Sys.init
+0;JMP
+
+"""
+    assembly_code = write_prolog() if args.write_prolog_and_epilog else os_prolog
 
     # loop over input files
     for input_file in args.input_files:

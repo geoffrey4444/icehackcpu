@@ -1,0 +1,14 @@
+class Main {
+  function void main() {
+    var String hello, new_line_chars;
+
+    let hello = "Hello, world!";
+
+    let new_line_chars = String.new(2);
+    let new_line_chars = new_line_chars.appendChar(String.newLine());
+    let new_line_chars = new_line_chars.appendChar(String.carriageReturn());
+
+    do hello.print();
+    do new_line_chars.print();
+  }
+}

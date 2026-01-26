@@ -91,4 +91,19 @@ class String {
     do Memory.deAlloc(this);
     return;
   }
+
+  method void print() {
+    var int i;
+    var char c;
+
+    let i = 0;
+    while (i < current_length) {
+      // write character to address that TX monitors
+      do Memory.poke(24577, char_array[i]);
+
+      let i = i + 1;
+    }
+
+    return;
+  }
 }
