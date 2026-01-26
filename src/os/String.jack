@@ -1,0 +1,94 @@
+class String {
+  field int max_length;
+  field int current_length;
+  field Array char_array;
+
+  constructor String new(int max_number_of_chars) {
+    if (max_number_of_chars < 1) {
+      // Do not support strings with 0 or negative capacity
+      do Sys.halt();
+    }
+    let max_length = max_number_of_chars;
+    let current_length = 0;
+    let char_array = Array.new(max_length);
+    return this;
+  }
+
+  method String appendChar(char c) {
+    if (current_length = max_length) {
+      // Can't add any more characters because string is full; halt
+      // Later, implement error reporting
+      do Sys.halt();
+    }
+    let char_array[current_length] = c;
+    let current_length = current_length + 1;
+    return this;
+  }
+
+  method int length() {
+    return current_length;
+  }
+
+  method char charAt(int i) {
+    if ((i < 0) | (~(i < current_length))) {
+      // Requested a character beyond the end of the string; just return 0
+      return 0;
+    }
+    return char_array[i];
+  }
+
+  method void setCharAt(int i, char c) {
+    if ((i < 0) | (i > current_length)) {
+      // Cannot insert; halt
+      do Sys.halt();
+    }    
+    if (i = current_length) {
+      if (~(current_length < max_length)) {
+        // Cannot expand beyond max length
+        do Sys.halt();
+      }
+      // append
+      let current_length = current_length + 1;      
+    }
+    let char_array[i] = c;
+    return;
+  }
+
+  method void eraseLastChar() {
+    if (current_length = 0) {
+      // String is already empty; just return empty string
+      return;
+    }
+    let char_array[(current_length - 1)] = 0;
+    let current_length = current_length - 1;
+    return;
+  }
+
+  function char del() {
+    return 127;
+  }
+
+  function char backSpace() {
+    return 8;
+  }
+
+  function char doubleQuote() {
+    return 34;
+  }
+
+  function char newLine() {
+    return 10;
+  }
+
+  function char carriageReturn() {
+    return 13;
+  }
+
+  method void dispose() {
+    let max_length = 0;
+    let current_length = 0;
+    do char_array.dispose();
+    do Memory.deAlloc(this);
+    return;
+  }
+}

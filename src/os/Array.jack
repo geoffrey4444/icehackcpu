@@ -1,5 +1,7 @@
 class Array {
   function Array new(int size) {
+    // Don't support empty arrays for now
+    // Array size is fixed, so size 0 makes no sense
     if (~(size > 0)) {
       do Sys.error(2);
     }
