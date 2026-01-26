@@ -1,6 +1,8 @@
 class Sys {
   function void init() {
     do Memory.init();
+    do Math.init();
+    
     do Main.main();
     do Sys.halt();
     return;
