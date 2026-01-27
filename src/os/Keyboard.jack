@@ -1,0 +1,15 @@
+class Keyboard {
+  function boolean available() {
+    return ((Memory.peek(24579)) > 0);
+  }
+
+  function int getChar() {
+    var int character;
+    if (Keyboard.available()) {
+      let character = Memory.peek(24578);
+      do Memory.poke(24579, 0);
+      return character;
+    }
+    return 0;
+  }
+}

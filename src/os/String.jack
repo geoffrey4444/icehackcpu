@@ -106,4 +106,32 @@ class String {
 
     return;
   }
+
+  // Read until string is full or a return or newline character is encountered
+  // Does not yet respond to backsapce
+  method void read() {
+    var int i, character;
+
+    // Erase any character left hanging around before the read starts,
+    // and set the status flag that there is no charater pending at start of
+    // the read.
+    if (Keyboard.available()) {
+      do Keyboard.getChar();
+    }
+    
+
+    let i = 0;
+    let current_length = 0;
+    while (i < max_length) {
+      if (Keyboard.available()) {
+        let character = Keyboard.getChar();
+        if ((character = 10) | (character = 13)) {
+          return; 
+        }
+        let char_array[i] = character;
+        let current_length = current_length + 1;
+        let i = i + 1;
+      }
+    }
+  }
 }
