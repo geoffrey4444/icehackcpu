@@ -106,3 +106,112 @@ always @(posedge clock) begin
   endcase
 end
 endmodule  // uart_tx
+
+// Receive one byte over serial (uart rx)
+module uart_rx(
+  input wire clock,
+  input wire rx,
+  input wire ready,
+  output reg [7:0] byte_received = 8'h00,
+  output reg valid = 1'b0
+);
+
+// Parameters and local parameters
+localparam integer IDLE = 0;
+localparam integer START = 1;
+localparam integer DATA = 2;
+localparam integer STOP = 3;
+localparam integer HOLD = 4;
+
+parameter CLK_FREQ = 12000000;
+parameter BAUD = 115200;
+localparam integer DIV = CLK_FREQ / BAUD;
+localparam integer HALF_DIV = DIV / 2;
+localparam integer COUNTER_SIZE = $clog2(DIV);
+
+// Wires and registers
+reg [COUNTER_SIZE-1:0] counter = 0;
+
+reg [3:0] state = IDLE;
+reg [7:0] shift = 8'b0;
+reg [3:0] bits_read = 4'b0;
+
+reg rx_temp = 1'b1; // start high (no data being received)
+reg rx_sync = 1'b1; // pass rx through two flipflops to avoid glitches
+reg rx_prev = 1'b1;  // previous state = previous cycles rx_sync
+
+// Time-dependent circuits
+always @(posedge clock) begin
+  // First, handle events that happen on every clock edge
+  // Pass rx through to sync (cost is 2 clock ticks of latency)
+  rx_temp <= rx;
+  rx_sync <= rx_temp;
+  rx_prev <= rx_sync;
+
+  case (state)
+    IDLE: begin
+      if ((rx_sync == 1'b0) && (rx_prev == 1'b1)) begin
+       state <= START;
+       // Edge: rx has just gone low
+       counter <= 0;
+      end
+    end
+    START: begin
+      // Wait HALF_DIV to get to middle of a the start pulse
+      if (counter == HALF_DIV - 1) begin
+        // Sanity check: unless the low was a glitch, rx should still be low
+        if (rx_sync == 1'b1) begin
+          // Just a glitch: go back to IDLE
+          counter <= 0;
+          state <= IDLE;
+        end else begin
+          // Looks like a real start bit: begin processing
+          bits_read <= 4'b0;
+          counter <= 0;
+          shift <= 8'b0;
+          state <= DATA;
+        end
+      end else begin
+        counter <= counter + 1;
+      end
+      
+    end
+    DATA: begin
+      if (bits_read == 8) begin
+        counter <= 0;
+        state <= STOP;
+      end else if (counter == DIV - 1) begin        
+        shift[bits_read] <= rx_sync;
+        counter <= 0;
+        bits_read <= bits_read + 1;       
+      end else begin
+        counter <= counter + 1;
+      end
+    end
+    STOP: begin
+      if (counter == DIV - 1) begin
+        // check for stop bit...should be high
+        if (rx_sync == 1'b0) begin
+          // frame error: discard read byte
+          state <= IDLE;
+          counter <= 0;
+        end else begin
+          valid <= 1'b1;
+          byte_received <= shift;
+          state <= HOLD;
+        end
+      end else begin
+        counter <= counter + 1;
+      end
+    end
+    HOLD: begin
+      if (ready == 1'b1) begin
+        valid <= 1'b0;
+        counter <= 0;
+        state <= IDLE;
+      end
+    end
+  endcase
+end
+
+endmodule  // uart_rx
