@@ -4,6 +4,7 @@ module top(
   input wire CLK,             // System clock (12 MHz)
   input wire FLASH_IO1,       // Receive bits from flash storage,
   input wire BTN1,            // Button will control reset on cpu
+  input wire RX,              // Receive bits from UART receiver
   output reg FLASH_SCK,       // Clock for flash storage
   output reg FLASH_SSB,       // Set low to start a flash conversation
   output reg FLASH_IO0,       // Send bits to flash storage
@@ -41,6 +42,9 @@ localparam integer START_NEXT_CPU_LOOP_ROUND = 20;
 localparam integer WAIT_FOR_ROM = 21;
 localparam integer WAIT_FOR_RAM = 22;
 localparam integer SET_INM_FROM_RAM = 23;
+localparam integer UPDATE_RX = 200;
+localparam integer UPDATE_RX_STATUS = 201;
+localparam integer FINISH_RX_UPDATE = 202;
 localparam integer SET_CPU_RUN = 24;
 localparam integer EXECUTE_CPU_CYCLE = 25;
 localparam integer GATHER_CPU_OUTPUTS_FOR_NEXT_INSTRUCTION = 26;
@@ -65,6 +69,8 @@ localparam integer TICKS_PER_FLASH_CLOCK_TOGGLE = 8;
 
 // Other constants
 localparam TX_ADDRESS = 15'd24577;
+localparam RX_ADDRESS = 15'd24578;
+localparam RX_STATUS_ADDRESS = 15'd24579;
 
 // Wires and registers
 reg [15:0] state = START;
@@ -117,6 +123,16 @@ wire baud_clock;  // driven by u_baud_tick
 wire valid = byte_is_pending;
 wire ready;       // driven by uart_tx
 reg uart_tx_seen_busy = 1'b0;
+
+reg [15:0] shadow_rx_status = 16'b0;
+reg ready_input = 0; // acknowledge receipt of read byte
+wire [7:0] byte_received; // driven by uart_rx
+wire valid_input; // driven by uart_rx
+
+reg [15:0] saved_ram_in = 16'b0;
+reg [14:0] saved_ram_address = 15'b0;
+reg saved_ram_load = 1'b0;
+reg need_to_update_rx_status = 1'b0;
 
 // For CPU
 reg [15:0] in_m = 16'h0000;
@@ -191,6 +207,14 @@ uart_tx u_uart_tx(
   .valid(valid),
   .ready(ready),
   .tx(TX)
+);
+
+uart_rx u_uart_rx(
+  .clock(CLK),
+  .rx(RX),
+  .ready(ready_input),
+  .byte_received(byte_received),
+  .valid(valid_input)
 );
 
 // Time logic
@@ -571,6 +595,50 @@ always @(posedge CLK) begin
     SET_INM_FROM_RAM: begin
       // ram_out now contains the value of RAM at address_m.
       in_m <= ram_out;
+      // All CPU inputs are now valid. But update RX before
+      // lifting the hold and executing an instruction.
+      state <= UPDATE_RX;
+    end
+    UPDATE_RX: begin
+      // Can now use ram_address, because read from RAM to in_m complete.
+      // But just to guarantee these states don't change earlier behavior,
+      // save the inputs to RAM to restore after handling RX.
+      saved_ram_address <= ram_address;
+      saved_ram_in <= ram_in;
+      saved_ram_load <= ram_load;
+
+      // If status = 0 (RAM doesn't already have a byte not yet read)
+      // and input reports ready (it's holding a byte ready to deliver),
+      // load the byte into RAM
+      if (shadow_rx_status == 16'b0 && valid_input == 1'b1) begin
+        ram_load <= 1'b1;
+        ram_address <= RX_ADDRESS;
+        ram_in <= byte_received;
+        ready_input <= 1'b1;
+        shadow_rx_status <= 16'b1;
+        need_to_update_rx_status <= 1'b1;                
+      end else begin
+        ram_load <= 1'b0;
+        ready_input <= 1'b0;
+      end
+      state <= UPDATE_RX_STATUS;     
+    end
+    UPDATE_RX_STATUS: begin
+      ready_input <= 1'b0; // ready_input never high for more than 1 tick
+      if (shadow_rx_status == 16'b1 && need_to_update_rx_status) begin        
+        ram_address <= RX_STATUS_ADDRESS;
+        ram_in <= 16'b1;
+        ram_load <= 1'b1;        
+      end else begin
+        ram_load <= 1'b0;
+      end
+      state <= FINISH_RX_UPDATE;
+    end
+    FINISH_RX_UPDATE: begin
+      ram_address <= saved_ram_address;
+      ram_in <= saved_ram_in;
+      ram_load <= saved_ram_load;
+      need_to_update_rx_status <= 1'b0;
       state <= SET_CPU_RUN;
     end
     SET_CPU_RUN: begin
@@ -599,7 +667,14 @@ always @(posedge CLK) begin
       // Use latched values for write.
       ram_load <= write_m_latch;
       ram_address <= address_m_latch;
-      ram_in <= out_m_latch;          
+      ram_in <= out_m_latch;      
+
+      // Are we writing to RX_STATUS_ADDRESS (15'd24579)? If so, update
+      // shadow_rx_status register
+      if ((address_m_latch == RX_STATUS_ADDRESS) & (write_m_latch == 1)) begin
+        // Only read final bit of RX_STATUS_ADDRESS
+        shadow_rx_status <= {15'b0, out_m_latch[0]};
+      end    
 
       // Are we writing to TX (15'd24577)? If so, go to START_UART_LOOP_SEND
       // to write the byte out. Else, go back to START_NEXT_CPU_LOOP_ROUND.
@@ -607,7 +682,7 @@ always @(posedge CLK) begin
         state <= START_UART_LOOP_SEND;
       end else begin
         state <= START_NEXT_CPU_LOOP_ROUND;
-      end
+      end      
     end
     START_UART_LOOP_SEND: begin
       // If arrived here, RAM is writing now if write_m_latch is true.
