@@ -58,3 +58,5 @@ echo -n "ROM size (max is 32768 16-bit words): "
 wc -l < $ddir/Program.hack
 echo -n "String table size (max is 8166 characters): "
 xxd -b -c 2 $ddir/StringConstantTable.bin | wc -l
+echo -n "Lines of jack code: "
+wc -l $ddir/*.jack
