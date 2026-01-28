@@ -29,6 +29,12 @@ localparam integer END_WRITE_WORD_TO_ROM = 10;
 localparam integer WAIT_TO_READ_WORD_FROM_ROM = 11;
 localparam integer READ_WORD_FROM_ROM = 12;
 
+localparam integer START_STRING_TABLE = 300;
+localparam integer WRITE_WORD_TO_RAM = 309;
+localparam integer END_WRITE_WORD_TO_RAM = 310;
+localparam integer WAIT_TO_READ_WORD_FROM_RAM = 311;
+localparam integer READ_WORD_FROM_RAM = 312;
+
 localparam DEBUG_DUMP_ROM = 1'b0;
 localparam integer START_UART_SEND = 13;
 localparam integer SEND_UART = 14;
@@ -53,7 +59,9 @@ localparam integer SEND_UART_LOOP = 28;
 localparam integer END_UART_LOOP = 29;
 
 // States for sending bits to the flash controller
-localparam [31:0] BYTES_TO_READ = 32'd65536; // Read 
+localparam [31:0] BYTES_TO_READ = 32'd65536; // Read
+localparam [31:0] STRING_BYTES_TO_READ = 32'd16335;
+localparam [23:0] STRING_RAM_OFFSET_ADDRESS = 24'd24600;
 
 localparam integer SENDFLASH_SELECT = 100;
 localparam integer SENDFLASH_START_SCK = 101;
@@ -65,6 +73,7 @@ localparam [7:0] RESET_COMMAND_2 = 8'h99;
 localparam [7:0] TICKS_TO_WAIT_AFTER_RESET = 400;
 localparam [7:0] READ_COMMAND = 8'h3;
 localparam [23:0] READ_OFFSET = 24'h100000;
+localparam [23:0] READ_OFFSET_STRING = 24'h200000;
 localparam integer TICKS_PER_FLASH_CLOCK_TOGGLE = 8;
 
 // Other constants
@@ -85,6 +94,9 @@ reg flash_clock_rise = 1'b0;
 reg flash_clock_fall = 1'b0;
 reg [7:0] command_to_send = READ_COMMAND;
 reg [23:0] flash_offset_address = READ_OFFSET;
+reg [23:0] string_offset_address = READ_OFFSET_STRING;
+reg [31:0] bytes_to_read = BYTES_TO_READ;
+reg [23:0] ram_offset_address = 24'b0;
 reg [23:0] flash_address = 24'b0;  // reset to offset address before each use
 
 reg [7:0] byte_read_from_flash = 8'b0;
@@ -402,7 +414,7 @@ always @(posedge CLK) begin
           // last bit has been sent
           bits_sent_to_flash <= 0; 
           FLASH_IO0 <= 0; // after this state ends, FLASHIO0 unused, hold low
-          flash_address <= flash_offset_address;  // reset in case used again
+          flash_address <= string_offset_address;  // reset in case used again
           state <= READ_FLASH_BYTE;
         end else begin
           bits_sent_to_flash <= bits_sent_to_flash + 1;
@@ -449,26 +461,54 @@ always @(posedge CLK) begin
       next_byte_completes_word <= ~next_byte_completes_word;
     end
     WRITE_WORD_TO_ROM: begin
-      rom_address <= words_read_from_flash[14:0];
-      rom_in <= word_read_from_flash;
-      rom_load <= 1'b1;
+      if (bytes_to_read == BYTES_TO_READ) begin
+        rom_address <= ram_offset_address + words_read_from_flash[14:0];
+        rom_in <= word_read_from_flash;
+        rom_load <= 1'b1;
+      end else begin
+        ram_address <= ram_offset_address + words_read_from_flash[14:0];
+        ram_in <= word_read_from_flash;
+        ram_load <= 1'b1;
+      end       
       state <= END_WRITE_WORD_TO_ROM;
     end
     END_WRITE_WORD_TO_ROM: begin
       rom_load <= 1'b0;
-      if (DEBUG_DUMP_ROM) begin
+      ram_load <= 1'b0;
+      if (DEBUG_DUMP_ROM && bytes_to_read == BYTES_TO_READ) begin
         state <= WAIT_TO_READ_WORD_FROM_ROM;
       end else begin
         words_read_from_flash <= words_read_from_flash + 1;
-        if (bytes_read_from_flash == BYTES_TO_READ) begin
+        if (bytes_read_from_flash == bytes_to_read) begin
           // Done reading instructions, start the main CPU loop
-          state <= START_CPU_LOOP;
+          if (bytes_to_read == BYTES_TO_READ) begin            
+            state <= START_STRING_TABLE;
+          end else begin
+            state <= START_CPU_LOOP;
+          end
         end else begin
           // read another pair of bytes
           flash_reader_is_active <= 1;
           state <= READ_FLASH_BYTE;
         end
       end
+    end
+    START_STRING_TABLE: begin
+      bytes_to_read <= STRING_BYTES_TO_READ;
+      ram_offset_address <= STRING_RAM_OFFSET_ADDRESS;
+      flash_reader_is_active <= 1;
+      FLASH_SSB <= 1'b0; // active low until done reading bits
+      bits_sent_to_flash <= 0;
+      bits_read_from_flash <= 0;
+      bytes_read_from_flash <= 0;
+      words_read_from_flash <= 0;
+      next_byte_completes_word <= 1'b0;
+      byte_read_from_flash <= 0;
+      word_read_from_flash <= 0;
+      flash_address <= string_offset_address;
+      command_to_send <= READ_COMMAND;
+      FLASH_IO0 <= READ_COMMAND[7]; // preload MSB for first read
+      state <= SEND_FLASH_READ_COMMAND;
     end
     WAIT_TO_READ_WORD_FROM_ROM: begin
       state <= READ_WORD_FROM_ROM;

@@ -94,6 +94,19 @@ TokenType = Literal[
 class Token:
     type: TokenType
     value: str
+    __slots__ = ["type", "value"]
+
+    def __init__(self, type: TokenType, value: str):
+        self.type = type
+        self.value = value
+
+    def __eq__(self, other: Token) -> bool:
+        if not isinstance(other, Token):
+            return False
+        return self.type == other.type and self.value == other.value
+
+    def __hash__(self) -> int:
+        return hash((self.type, self.value))
 
 
 # Term and expression related classes
@@ -444,6 +457,60 @@ def tokenize_code_from_file(file_path):
         jack_code = f.read()
         tokens = tokenize_code(jack_code)
         return tokens
+
+
+# String constant table
+# Goal: store a dictionary of every unique string literal
+# Strings are tokens of type "stringConstant"
+@dataclass
+class StringLiteralPositionInfo:
+    address: int
+    length: int
+
+
+class StringConstantTable:
+    string_token_to_position_info: dict[Token, StringLiteralPositionInfo] = {}
+    starting_address: int = 24600
+    max_address: int = 32767
+    next_available_address: int = 24600
+
+    def add_string_literal(self, string_token: Token):
+        # Error if passed a token that isn't a stringConstant
+        if string_token.type != "stringConstant":
+            raise ValueError(f"Token {string_token.value} is not a string constant")
+
+        # Duplicate string found; do nothing since it's already in the table
+        if string_token in self.string_token_to_position_info:
+            return
+
+        # Error if maximum address reached for string literals
+        # This means not enough RAM to hold all the string literals
+        string_literal_length = len(string_token.value)
+        if self.next_available_address + string_literal_length > self.max_address:
+            raise ValueError(
+                f"Maximum address {self.max_address} reached for string literals"
+            )
+
+        # Add string literal to table
+        string_literal_position_info = StringLiteralPositionInfo(
+            address=self.next_available_address, length=string_literal_length
+        )
+        self.string_token_to_position_info[string_token] = string_literal_position_info
+        self.next_available_address += string_literal_length
+        return
+
+    def return_dictionary_of_string_literals(
+        self,
+    ) -> dict[Token, StringLiteralPositionInfo]:
+        return self.string_token_to_position_info
+
+    def string_token_to_position_info_as_bytes(self) -> bytes:
+        raw_bytes = b"".join(
+            b"\x00" + bytes([ord(c)])
+            for key in self.string_token_to_position_info.keys()
+            for c in key.value
+        )
+        return raw_bytes
 
 
 # Class for compiling program structure
@@ -1252,14 +1319,18 @@ class VMGenerator:
     current_class_name: str
     current_subroutine_kind: str
     label_counter: int
+    string_literals_table: dict[Token, StringLiteralPositionInfo]
 
-    def __init__(self):
+    def __init__(self, string_constant_table: StringConstantTable):
         self.vm_writer = VMWriter()
         self.class_symbol_table = SymbolTable()
         self.subroutine_symbol_table = SymbolTable()
         self.current_class_name = ""
         self.current_subroutine_kind = ""
         self.label_counter = 0
+        self.string_literals_table = (
+            string_constant_table.return_dictionary_of_string_literals()
+        )
 
     def reset(self):
         self.class_symbol_table.reset()
@@ -1310,6 +1381,24 @@ class VMGenerator:
                 )
             result += self.vm_writer.write_push("constant", ord(char))
             result += self.vm_writer.write_call("String.appendChar", 2)
+        return result
+
+    # Generate vm code for a string constant in the table
+    def generate_vm_code_for_string_constant_in_table(
+        self, node: StringConstant
+    ) -> str:
+        if node.token not in self.string_literals_table:
+            raise ValueError(
+                f"String constant {node.token.value} not found in string literals table"
+            )
+        string_literal_position_info = self.string_literals_table[node.token]
+        result = self.vm_writer.write_push(
+            "constant", string_literal_position_info.address
+        )
+        result += self.vm_writer.write_push(
+            "constant", string_literal_position_info.length
+        )
+        result += self.vm_writer.write_call("String.newFromTable", 2)
         return result
 
     def generate_vm_code_for_parenthetical_expression(
@@ -1369,7 +1458,10 @@ class VMGenerator:
             case VarName():
                 return self.generate_vm_code_for_var_name(node)
             case StringConstant():
-                return self.generate_vm_code_for_string_constant(node)
+                if node.token in self.string_literals_table:
+                    return self.generate_vm_code_for_string_constant_in_table(node)
+                else:
+                    return self.generate_vm_code_for_string_constant(node)
             case ParentheticalExpression():
                 return self.generate_vm_code_for_parenthetical_expression(node)
             case UnaryOpTerm():
@@ -2302,8 +2394,34 @@ def main():
     )
     args = parser.parse_args()
 
+    # Build the string table
+    string_constant_table = StringConstantTable()
+    for input_file in args.input_files:
+        current_file_path = Path(input_file)
+        current_file_tokens = tokenize_code_from_file(current_file_path)
+        for token in current_file_tokens:
+            if token.type == "stringConstant":
+                string_constant_table.add_string_literal(token)
+    string_constant_table_bytes = (
+        string_constant_table.string_token_to_position_info_as_bytes()
+    )
+    output_string_table_file_path = (
+        Path(args.input_files[0]).parent / "StringConstantTable.bin"
+    )
+    with open(output_string_table_file_path, "wb") as output_string_table_file:
+        output_string_table_file.write(string_constant_table_bytes)
+        print(f"Output string table to {output_string_table_file_path.stem}.bin")
+    for (
+        string_token,
+        string_literal_position_info,
+    ) in string_constant_table.return_dictionary_of_string_literals().items():
+        print(
+            f"  {string_token.value} -> {string_literal_position_info.address} {string_literal_position_info.length}"
+        )
+
+    # Generate VM code
     tokens = []
-    vm_generator = VMGenerator()
+    vm_generator = VMGenerator(string_constant_table)
     for input_file in args.input_files:
         current_file_path = Path(input_file)
         current_file_stem = current_file_path.stem

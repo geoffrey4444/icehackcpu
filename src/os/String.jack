@@ -2,6 +2,7 @@ class String {
   field int max_length;
   field int current_length;
   field Array char_array;
+  field boolean owns_array;
 
   constructor String new(int max_number_of_chars) {
     if (max_number_of_chars < 1) {
@@ -11,6 +12,20 @@ class String {
     let max_length = max_number_of_chars;
     let current_length = 0;
     let char_array = Array.new(max_length);
+    let owns_array = true;
+    return this;
+  }
+
+  // Construct a string literal from the table of string constants
+  constructor String newFromTable(int address, int length) {
+    if ((address < 24600) | (address > (32767 - length))) {
+      // Address outside of table
+      do Sys.halt();
+    }
+    let max_length = length;
+    let current_length = length;
+    let char_array = address;
+    let owns_array = false;
     return this;
   }
 
