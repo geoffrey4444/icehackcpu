@@ -99,7 +99,7 @@ class String {
     let i = 0;
     while (i < current_length) {
       // write character to address that TX monitors
-      do Memory.poke(24577, char_array[i]);
+      do String.print_character(char_array[i]);
 
       let i = i + 1;
     }
@@ -137,9 +137,14 @@ class String {
         let current_length = current_length + 1;
         let i = i + 1;
         if (echo_input_chars = true) {
-          do Memory.poke(24577, character);
+          do String.print_character(character);
         }
       }
     }
+  }
+
+  function void print_character(char character) {
+    do Memory.poke(24577, character);
+    return;
   }
 }
