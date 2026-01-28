@@ -109,7 +109,7 @@ class String {
 
   // Read until string is full or a return or newline character is encountered
   // Does not yet respond to backsapce
-  method void read() {
+  method void read(boolean echo_input_chars) {
     var int i, character;
 
     // Erase any character left hanging around before the read starts,
@@ -125,12 +125,20 @@ class String {
     while (i < max_length) {
       if (Keyboard.available()) {
         let character = Keyboard.getChar();
+
+        // If backspace, reduce the string length by one,
+        // move left one character, and print a space over that character
+
+        // If return, we're done reading characters
         if ((character = 10) | (character = 13)) {
           return; 
-        }
+        }        
         let char_array[i] = character;
         let current_length = current_length + 1;
         let i = i + 1;
+        if (echo_input_chars = true) {
+          do Memory.poke(24577, character);
+        }
       }
     }
   }
