@@ -60,3 +60,5 @@ echo -n "String table size (max is 8166 characters): "
 xxd -b -c 2 $ddir/StringConstantTable.bin | wc -l
 echo -n "Lines of jack code: "
 wc -l $ddir/*.jack
+echo -n "Lines of vm code: "
+wc -l $ddir/*.vm
