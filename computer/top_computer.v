@@ -30,10 +30,7 @@ localparam integer WAIT_TO_READ_WORD_FROM_ROM = 11;
 localparam integer READ_WORD_FROM_ROM = 12;
 
 localparam integer START_STRING_TABLE = 300;
-localparam integer WRITE_WORD_TO_RAM = 309;
-localparam integer END_WRITE_WORD_TO_RAM = 310;
-localparam integer WAIT_TO_READ_WORD_FROM_RAM = 311;
-localparam integer READ_WORD_FROM_RAM = 312;
+localparam integer WAIT_FOR_NEXT_FLASH_COMMAND= 301;
 
 localparam DEBUG_DUMP_ROM = 1'b0;
 localparam integer START_UART_SEND = 13;
@@ -60,7 +57,7 @@ localparam integer END_UART_LOOP = 29;
 
 // States for sending bits to the flash controller
 localparam [31:0] BYTES_TO_READ = 32'd65536; // Read
-localparam [31:0] STRING_BYTES_TO_READ = 32'd16335;
+localparam [31:0] STRING_BYTES_TO_READ = 32'd16334;
 localparam [23:0] STRING_RAM_OFFSET_ADDRESS = 24'd24600;
 
 localparam integer SENDFLASH_SELECT = 100;
@@ -481,8 +478,14 @@ always @(posedge CLK) begin
         words_read_from_flash <= words_read_from_flash + 1;
         if (bytes_read_from_flash == bytes_to_read) begin
           // Done reading instructions, start the main CPU loop
-          if (bytes_to_read == BYTES_TO_READ) begin            
-            state <= START_STRING_TABLE;
+          if (bytes_to_read == BYTES_TO_READ) begin
+            // done with that read command
+            // hold FLASH_SSB high with FLASH_SCK low for a bit,
+            // then send the next read command
+            FLASH_SSB <= 1'b1; 
+            flash_reader_is_active <= 1'b0;
+            sendflash_wait_counter <= 16'b0;
+            state <= WAIT_FOR_NEXT_FLASH_COMMAND;
           end else begin
             state <= START_CPU_LOOP;
           end
@@ -491,6 +494,15 @@ always @(posedge CLK) begin
           flash_reader_is_active <= 1;
           state <= READ_FLASH_BYTE;
         end
+      end
+    end
+    WAIT_FOR_NEXT_FLASH_COMMAND: begin
+      // wait a bit, so flash is ready for the next read command
+      if (sendflash_wait_counter == 400) begin
+        sendflash_wait_counter <= 16'b0;
+        state <= START_STRING_TABLE;
+      end else begin
+        sendflash_wait_counter <= sendflash_wait_counter + 1;
       end
     end
     START_STRING_TABLE: begin

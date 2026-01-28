@@ -52,3 +52,9 @@ iceprog -k -o $STRING_DATA_OFFSET $ddir/StringConstantTable.bin
 
 echo "Installing computer and program to board via install_computer.sh"
 $SCRIPT_DIR/install_computer.sh $ddir/Program.bin
+
+echo "Done installing!"
+echo -n "ROM size (max is 32768 16-bit words): "
+wc -l < $ddir/Program.hack
+echo -n "String table size (max is 8166 characters): "
+xxd -b -c 2 $ddir/StringConstantTable.bin | wc -l
