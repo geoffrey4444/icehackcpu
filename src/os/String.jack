@@ -126,18 +126,32 @@ class String {
       if (Keyboard.available()) {
         let character = Keyboard.getChar();
 
-        // If backspace, reduce the string length by one,
-        // move left one character, and print a space over that character
-
         // If return, we're done reading characters
         if ((character = 10) | (character = 13)) {
           return; 
-        }        
-        let char_array[i] = character;
-        let current_length = current_length + 1;
-        let i = i + 1;
-        if (echo_input_chars = true) {
-          do String.print_character(character);
+        }
+        // If backspace, reduce the string length by one,
+        // move left one character, and print a space over that character
+        if ((character = String.backSpace()) | (character = String.del())) {
+          // Backspace: remove a character from the string
+          if (current_length > 0) {            
+            let i = i - 1;
+            let char_array[i] = 0;
+            let current_length = current_length - 1;
+            if (echo_input_chars = true) {
+              do String.print_character(String.backSpace());
+              do String.print_character(32);
+              do String.print_character(String.backSpace());
+            }            
+          }                    
+        } else {    
+          // Append character to string    
+          let char_array[i] = character;
+          let current_length = current_length + 1;
+          let i = i + 1;
+          if (echo_input_chars = true) {
+            do String.print_character(character);
+          }
         }
       }
     }
