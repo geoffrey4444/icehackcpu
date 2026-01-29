@@ -1,0 +1,59 @@
+class Output {
+  function void moveCursor(int row, int col) {
+    var String text;
+    if (((row < 0) | (row > 22)) | ((col < 0) | (col > 63))) {
+      do Sys.halt();
+      return;
+    }
+    let text = String.newFromTable(5, 8);
+    // `ESC[{line};{column}H`
+    do Output.printChar(27);  // esc
+    do Output.printChar(91);  // [
+    do Output.printChar(text.setValue(row));
+    do Output.printChar(59);  // ;
+    do Output.printChar(text.setValue(col));
+    do Output.printChar(72);  // H
+    return;
+  }
+
+  function void printString(String text) {
+    do text.print();
+    return;
+  }
+
+  function void printArray(Array text, int length) {
+    var int i;
+    var char c;
+    
+    let i = 0;
+    while (i < length) {
+      do Output.printChar(text[i]);
+      let i = i + 1;
+    }
+
+    return;
+  }
+
+  function void printInt(int value) {
+    var String text;
+    do text.setValue(value);
+    do text.print();
+    return;
+  }
+
+  function void println() {
+    do Memory.poke(24577, 13);
+    do Memory.poke(24577, 10);
+    return;
+  }
+
+  function void backspace() {
+    do Output.printChar(String.backSpace());
+  }
+
+  function void printChar(char character) {
+    do Memory.poke(24577, character);
+    return;
+  }
+}
+

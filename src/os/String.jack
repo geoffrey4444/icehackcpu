@@ -99,26 +99,50 @@ class String {
     return 13;
   }
 
+  // Algorithm assumes value > 0. So take absolute value if not to make sure.
+  // Does not check if string can hold the digit...up to the caller
+  // to make sure string has the space!
+  method void setValue(int value) {
+    var int tenth_of_value, last_digit, abs_value;
+    var char last_digit_char;
+    
+    // max number of characters 
+    // int range 0 to 32767 ... 5 chars max
+    let abs_value = Math.abs(value);
+    let tenth_of_value = abs_value / 10;
+    let last_digit = abs_value - (10 * tenth_of_value);
+    let last_digit_char = last_digit + 48;
+    if (value < 10) {
+      let current_length = 0;
+      do appendChar(last_digit_char);
+    } else {
+      do setValue(tenth_of_value);
+      do appendChar(last_digit_char);
+    }
+  }
+
+  method int intValue() {
+    var int result, i, digit_value;
+    let i = 0;
+    while (i < text.length()) {
+      let digit_value = charAt(i) - 48;
+      let result = (10 * result) + digit_value;
+    }
+    return result;
+  }
+
   method void dispose() {
     let max_length = 0;
     let current_length = 0;
     do char_array.dispose();
-    do Memory.deAlloc(this);
+    if (owns_array = true) {
+      do Memory.deAlloc(this);
+    }
     return;
   }
 
   method void print() {
-    var int i;
-    var char c;
-
-    let i = 0;
-    while (i < current_length) {
-      // write character to address that TX monitors
-      do String.print_character(char_array[i]);
-
-      let i = i + 1;
-    }
-
+    do Output.printArray(char_array, current_length);
     return;
   }
 
@@ -132,8 +156,7 @@ class String {
     // the read.
     if (Keyboard.available()) {
       do Keyboard.getChar();
-    }
-    
+    }    
 
     let i = 0;
     let current_length = 0;
@@ -154,9 +177,9 @@ class String {
             let char_array[i] = 0;
             let current_length = current_length - 1;
             if (echo_input_chars = true) {
-              do String.print_character(String.backSpace());
-              do String.print_character(32);
-              do String.print_character(String.backSpace());
+              do Output.printChar(String.backSpace());
+              do Output.printChar(32);
+              do Output.printChar(String.backSpace());
             }            
           }                    
         } else {    
@@ -165,15 +188,10 @@ class String {
           let current_length = current_length + 1;
           let i = i + 1;
           if (echo_input_chars = true) {
-            do String.print_character(character);
+            do Output.printChar(character);
           }
         }
       }
     }
-  }
-
-  function void print_character(char character) {
-    do Memory.poke(24577, character);
-    return;
   }
 }

@@ -1,11 +1,7 @@
 class Main {
   function void main() {
     var String welcome, prompt;
-    var String hello_start, hello_name, hello_end, new_line_chars;
-
-    let new_line_chars = String.new(2);
-    let new_line_chars = new_line_chars.appendChar(String.newLine());
-    let new_line_chars = new_line_chars.appendChar(String.carriageReturn());
+    var String hello_start, hello_name, hello_end;
     
     let welcome = "Welcome to Hackintosh! Please tell me your name.";
     let prompt = "> ";
@@ -14,17 +10,17 @@ class Main {
 
     while (true) {
       do welcome.print();
-      do new_line_chars.print();
+      do Output.println();
       do prompt.print();
 
       let hello_name = String.new(255);
       do hello_name.read(true); // read from user input    
 
-      do new_line_chars.print();
+      do Output.println();
       do hello_start.print();
       do hello_name.print();
       do hello_end.print();
-      do new_line_chars.print();
+      do Output.println();
     }
 
     return;
