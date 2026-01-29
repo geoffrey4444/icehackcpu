@@ -99,34 +99,41 @@ class String {
     return 13;
   }
 
+  method void clear() {
+    let current_length = 0;
+    return;
+  }
+
   // Algorithm assumes value > 0. So take absolute value if not to make sure.
   // Does not check if string can hold the digit...up to the caller
   // to make sure string has the space!
-  method void setValue(int value) {
-    var int tenth_of_value, last_digit, abs_value;
-    var char last_digit_char;
-    
-    // max number of characters 
-    // int range 0 to 32767 ... 5 chars max
-    let abs_value = Math.abs(value);
-    let tenth_of_value = abs_value / 10;
-    let last_digit = abs_value - (10 * tenth_of_value);
-    let last_digit_char = last_digit + 48;
-    if (value < 10) {
-      let current_length = 0;
-      do appendChar(last_digit_char);
-    } else {
-      do setValue(tenth_of_value);
-      do appendChar(last_digit_char);
+  method void setValueDigits(int value) {
+    var int remainder;
+
+    if (~(value < 10)) {
+      do setValueDigits(value / 10);
     }
+    let remainder = value - (10 * (value / 10));
+    do appendChar(48 + remainder);
+    return;
+  }
+
+  method void setValue(int value) {
+    do clear();
+    do setValueDigits(value);
+    return;
   }
 
   method int intValue() {
     var int result, i, digit_value;
     let i = 0;
-    while (i < text.length()) {
+    while (i < current_length) {
       let digit_value = charAt(i) - 48;
+      if ((digit_value < 0) | (digit_value > 9)) {
+        return;
+      }
       let result = (10 * result) + digit_value;
+      let i = i + 1;
     }
     return result;
   }
