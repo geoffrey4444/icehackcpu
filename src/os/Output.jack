@@ -1,52 +1,27 @@
 class Output {
   function void moveCursorHome() {
-    do Output.printChar(27);  // esc
-    do Output.printChar(91);  // [
-    do Output.printChar(72);  // H
+    do Output.printString("\x1b[H");
     return;
   }
 
   function void hideCursor() {
-    do Output.printChar(27);
-    do Output.printChar(91);
-    do Output.printChar(63);
-    do Output.printChar(50);
-    do Output.printChar(53);
-    do Output.printChar(108);
-    
+    do Output.printString("\x1b[?25l");    
     return;
   }
 
   function void showCursor() {
-    do Output.printChar(27);
-    do Output.printChar(91);
-    do Output.printChar(63);
-    do Output.printChar(50);
-    do Output.printChar(53);
-    do Output.printChar(104);
+    do Output.printString("\x1b[?25h");
     return;
   }
 
   function void moveCursor(int row, int col) {
-    var String text;
-    if (((row < 0) | (row > 22)) | ((col < 0) | (col > 63))) {
-      do Sys.halt();
-      return;
-    }
-    let text = String.newFromTable(5, 8);
-    // `ESC[{line};{column}H`
-    do Output.printChar(76);
-    do Output.printChar(27);  // esc
-    do Output.printChar(91);  // [
+    do Output.printString("\x1b[");
     do text.setValue(row);
     do text.print();
-    do Output.printChar(66);  // B
-    do Output.printChar(27);  // esc
-    do Output.printChar(91);  // [
-    do text.setValue(col);
+    do Output.printString(";");
+    do text.sertValue(col);
     do text.print();
-    do Output.printChar(67);  // C
-    do Output.printChar(71);
+    do Output.printString("H");    
     return;
   }
 
