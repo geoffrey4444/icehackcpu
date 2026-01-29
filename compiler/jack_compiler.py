@@ -1,5 +1,6 @@
 from __future__ import annotations
 import argparse
+import codecs
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -473,6 +474,7 @@ class StringConstantTable:
     starting_address: int = 24600
     max_address: int = 32767
     next_available_address: int = 24600
+    string_token_to_decoded_bytes: dict[Token, bytes] = {}
 
     def add_string_literal(self, string_token: Token):
         # Error if passed a token that isn't a stringConstant
@@ -485,7 +487,10 @@ class StringConstantTable:
 
         # Error if maximum address reached for string literals
         # This means not enough RAM to hold all the string literals
-        string_literal_length = len(string_token.value)
+        decoded_string = codecs.decode(string_token.value, "unicode_escape")
+        decoded_bytes = decoded_string.encode("ascii")
+
+        string_literal_length = len(decoded_bytes)
         if self.next_available_address + string_literal_length > self.max_address:
             raise ValueError(
                 f"Maximum address {self.max_address} reached for string literals"
@@ -496,6 +501,7 @@ class StringConstantTable:
             address=self.next_available_address, length=string_literal_length
         )
         self.string_token_to_position_info[string_token] = string_literal_position_info
+        self.string_token_to_decoded_bytes[string_token] = decoded_bytes
         self.next_available_address += string_literal_length
         return
 
@@ -506,9 +512,9 @@ class StringConstantTable:
 
     def string_token_to_position_info_as_bytes(self) -> bytes:
         raw_bytes = b"".join(
-            b"\x00" + bytes([ord(c)])
+            b"\x00" + bytes([b])
             for key in self.string_token_to_position_info.keys()
-            for c in key.value
+            for b in self.string_token_to_decoded_bytes[key]
         )
         return raw_bytes
 
