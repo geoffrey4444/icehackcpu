@@ -1,26 +1,24 @@
 class Main {
   function void main() {
-    var String welcome, prompt;
+    var String welcome;
     var String hello_start, hello_name, hello_end;
     
-    let welcome = "Welcome to Hackintosh! Please tell me your name.";
-    let prompt = "> ";
+    let welcome = "Welcome to Hackintosh! Please tell me your name.\n\r> ";
     let hello_start = "Hello, ";
-    let hello_end = "!";
+    let hello_end = "!\n\r";
+
+    let hello_name = String.new(255);
 
     while (true) {
       do welcome.print();
-      do Output.println();
-      do prompt.print();
 
-      let hello_name = String.new(255);
       do hello_name.read(true); // read from user input    
 
-      do Output.println();
+      do Output.printString("\n\r");
       do hello_start.print();
       do hello_name.print();
       do hello_end.print();
-      do Output.println();
+      do Output.printString("\n\r");
     }
 
     return;
