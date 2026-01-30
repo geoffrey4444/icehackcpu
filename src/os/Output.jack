@@ -30,6 +30,22 @@ class Output {
     return;
   }
 
+  function void clearScreen() {
+    //ESC [ 2 J ESC [ H
+    do Output.printString("\x1b[2J\x1b[H");
+    return;
+  }
+
+  // 3X = foreground, 4X = background
+  // X = 0,1,2,3,4,5,6,7 = black, red, green, yellow
+  // blue, magenta, cyan, white
+  function void setColor(int color) {
+    // just ignore invalid colors, not worth crashing over
+    do Output.printString("\x1b[");
+    do Output.printInt(color);
+    do Output.printString("m");
+  }
+
   function void printString(String text) {
     do text.print();
     return;

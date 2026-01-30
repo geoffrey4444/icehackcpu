@@ -2,6 +2,8 @@ class Main {
   function void main() {
     var String text;
     var String text_second;
+    var int color;
+    var int some_char;
 
     do Output.hideCursor();
 
@@ -19,9 +21,14 @@ class Main {
     // do Output.moveCursorHome();
 
     // Color cyan
-    do Output.printString("\x1b[36m");    
+    // do Output.setColor(36);
+    do Output.setColor(33);
 
     do Output.printString("Welcome to Hackintosh.\n");
-    do Output.printInt(40+5);
+    do Output.printInt(34);
+
+    let color = 44;
+    // do Output.setColor(color);
+    do Output.printString("\n\rHello, world!");    
   }
 }
