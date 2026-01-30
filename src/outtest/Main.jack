@@ -27,8 +27,22 @@ class Main {
     do Output.printString("Welcome to Hackintosh.\n");
     do Output.printInt(34);
 
+    let color = 34;
+    do Output.setColor(color);
+    do Output.printString("\n\rHello, world!");  
     let color = 44;
-    // do Output.setColor(color);
-    do Output.printString("\n\rHello, world!");    
+    while (true) {
+      let some_char = Keyboard.getChar();      
+      if (some_char = 32) {
+        do Output.clearScreen();        
+        if (color = 47) {
+          let color = 40;
+        } else {
+          let color = color + 1;
+        }
+        do Output.setColor(color);
+        do Output.printString("                                            ");
+      }
+    }
   }
 }
