@@ -1,0 +1,27 @@
+class Main {  
+  function void main() {
+    var String text;
+    var String text_second;
+
+    do Output.hideCursor();
+
+    let text = "52";
+    let text_second = String.new(5);
+
+    // do Output.moveCursor(12,40);
+    do Output.printChar(text.intValue());
+    do text_second.setValue(60+5);
+    do text_second.print();    
+
+    do Output.moveCursor(12, 36);
+
+    // Go home
+    // do Output.moveCursorHome();
+
+    // Color cyan
+    do Output.printString("\x1b[36m");    
+
+    do Output.printString("Welcome to Hackintosh.\n");
+    do Output.printInt(40+5);
+  }
+}

@@ -15,13 +15,18 @@ class Output {
   }
 
   function void moveCursor(int row, int col) {
+    // Go home
+    do Output.moveCursorHome();
+
+    // Go col right
     do Output.printString("\x1b[");
-    do text.setValue(row);
-    do text.print();
-    do Output.printString(";");
-    do text.sertValue(col);
-    do text.print();
-    do Output.printString("H");    
+    do Output.printInt(col);
+    do Output.printString("C");
+
+    // Go row down
+    do Output.printString("\x1b[");
+    do Output.printInt(row);
+    do Output.printString("B");
     return;
   }
 
@@ -48,6 +53,7 @@ class Output {
     let text = String.new(5);
     do text.setValue(value);
     do text.print();
+    do text.dispose();
     return;
   }
 
