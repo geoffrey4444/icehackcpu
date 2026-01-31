@@ -19,6 +19,7 @@ class Math {
   // largest integer I can represent in 16-bit 2's complement.
   function int abs(int x) {
     if (x < (-32767)) {
+      do Output.printString("Error: cannot negate -32767\n\r");
       do Sys.halt();
     }
     if (x < 0) {
@@ -27,6 +28,7 @@ class Math {
       return x;
     }
     // Should not get here
+    do Output.printString("Error: abs should not get here\n\r");
     do Sys.halt();
     return 0;
   }
@@ -74,6 +76,7 @@ class Math {
     // Undefined for y = 0
     // Report errors once error reporting available; for now, halt
     if (y = 0) {
+      do Output.printString("Error: divide by zero\n\r");
       do Sys.halt();
     }
 
@@ -100,6 +103,7 @@ class Math {
     
     // check if overflow, halt if detected
     if (two_abs_y < 0) {
+      do Output.printString("Error: overflow in division\n\r");
       do Sys.halt();
     }
 
@@ -118,6 +122,7 @@ class Math {
       return -abs_quotient;
     }
     // should not get here
+    do Output.printString("Error: Math.divide should not get here\n\r");
     do Sys.halt();
     return 0;
   }
@@ -130,6 +135,7 @@ class Math {
     // Undefined for negative x
     // Report errors once error reporting available; for now, halt
     if (x < 0) {
+      do Output.printString("Error: sqrt undefined for x < 0\n\r");
       do Sys.halt();
     }
 
@@ -154,6 +160,7 @@ class Math {
       return y;
     }
     // should not get here
+    do Output.printString("Error: Math.min should not get here\n\r");
     do Sys.halt();
     return 0;
   }
@@ -165,6 +172,7 @@ class Math {
       return y;
     }
     // should not get here
+    do Output.printString("Error: Math.max should not get here\n\r");
     do Sys.halt();
     return 0;
   }

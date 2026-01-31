@@ -7,6 +7,7 @@ class String {
   constructor String new(int max_number_of_chars) {
     if (max_number_of_chars < 1) {
       // Do not support strings with 0 or negative capacity
+      do Output.printString("Error: string constructor requested < 1 character\n\r");
       do Sys.halt();
     }
     let max_length = max_number_of_chars;
@@ -20,6 +21,7 @@ class String {
   constructor String newFromTable(int address, int length) {
     if ((address < 24600) | (address > (32767 - length))) {
       // Address outside of table
+      do Output.printString("Error: string literal address out of bounds\n\r");
       do Sys.halt();
     }
     let max_length = length;
@@ -33,6 +35,7 @@ class String {
     if (current_length = max_length) {
       // Can't add any more characters because string is full; halt
       // Later, implement error reporting
+      do Output.printString("Error: string is full; cannot append character\n\r");
       do Sys.halt();
     }
     let char_array[current_length] = c;
@@ -55,11 +58,13 @@ class String {
   method void setCharAt(int i, char c) {
     if ((i < 0) | (i > current_length)) {
       // Cannot insert; halt
+      do Output.printString("Error: cannot insert character at invalid position\n\r");
       do Sys.halt();
     }    
     if (i = current_length) {
       if (~(current_length < max_length)) {
         // Cannot expand beyond max length
+        do Output.printString("Error: cannot expand string beyond max length\n\r");
         do Sys.halt();
       }
       // append
