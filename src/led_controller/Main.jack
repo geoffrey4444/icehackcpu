@@ -3,7 +3,7 @@ class Main {
     var String response;
     var int result;
 
-    let response = String.new(24);
+    let response = String.new(255);
 
     do Output.printString("Enter a brightness:\n\r> ");
     do response.read(true);
@@ -25,7 +25,7 @@ class Main {
     let instructions = "To read the status of an LED, type 'r' for red, 'g' for green, or 'b' for blue.\n\rTo set an LED, type 'sr' for red, 'sg' for green, or 'sb' for blue.\n\r\n\r";
     let prompt = "> ";
 
-    let command = String.new(24);
+    let command = String.new(255);
 
     do Output.printString(welcome);
     do Output.printString(instructions);
