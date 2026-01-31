@@ -5,6 +5,9 @@ module top(
   input wire FLASH_IO1,       // Receive bits from flash storage,
   input wire BTN1,            // Button will control reset on cpu
   input wire RX,              // Receive bits from UART receiver
+  output wire LED_RED_N,      // active low
+  output wire LED_GRN_N,      // active low
+  output wire LED_BLU_N,      // active low
   output reg FLASH_SCK,       // Clock for flash storage
   output reg FLASH_SSB,       // Set low to start a flash conversation
   output reg FLASH_IO0,       // Send bits to flash storage
@@ -77,9 +80,24 @@ localparam integer TICKS_PER_FLASH_CLOCK_TOGGLE = 8;
 localparam TX_ADDRESS = 15'd24577;
 localparam RX_ADDRESS = 15'd24578;
 localparam RX_STATUS_ADDRESS = 15'd24579;
+localparam LED_RED_CONTROL_ADDRESS = 15'd24580;
+localparam LED_GRN_CONTROL_ADDRESS = 15'd24581;
+localparam LED_BLU_CONTROL_ADDRESS = 15'd24582;
+localparam LED_RED_STATUS_ADDRESS = 15'd24583;
+localparam LED_GRN_STATUS_ADDRESS = 15'd24584;
+localparam LED_BLU_STATUS_ADDRESS = 15'd24585;
 
 // Wires and registers
 reg [15:0] state = START;
+
+// For RGB LED
+reg [15:0] control_red_led = 16'b0;
+reg [15:0] control_grn_led = 16'b0;
+reg [15:0] control_blu_led = 16'b0;
+reg reset_led = 1'b0;
+wire [15:0] status_red_led;
+wire [15:0] status_grn_led;
+wire [15:0] status_blu_led;
 
 // For flash storage
 reg [15:0] sendflash_state = SENDFLASH_SELECT;
@@ -172,6 +190,21 @@ wire reset;
 assign reset = (power_on_reset | BTN1);
 
 // Parts
+// RGB LED
+rgb_led u_rgb_led(
+  .clock(CLK),
+  .reset(reset_led),
+  .control_red(control_red_led),
+  .control_grn(control_grn_led),
+  .control_blu(control_blu_led),
+  .red(LED_RED_N),
+  .grn(LED_GRN_N),
+  .blu(LED_BLU_N),
+  .status_red(status_red_led),
+  .status_grn(status_grn_led),
+  .status_blu(status_blu_led)
+);
+
 // RAM and ROM
 ram32k u_rom(
   .clock(CLK),
@@ -599,6 +632,9 @@ always @(posedge CLK) begin
       end
     end
     START_CPU_LOOP: begin
+      // LED control now enabled
+      reset_led <= 1'b1; // reset is active low
+
       // This state executes once, handing over control to the main
       // loop from the boot sequence.
       // ROM no longer writeable; default address is first instruction
@@ -646,7 +682,22 @@ always @(posedge CLK) begin
     end
     SET_INM_FROM_RAM: begin
       // ram_out now contains the value of RAM at address_m.
+      // By default, that's the value to pass to the CPU as in_m...
       in_m <= ram_out;
+
+      // ... however, if the requested address was MMIO
+      // (memory mapped input ouput) address, then instead set in_m to the
+      // control register's value. (Except for RX, which we handle
+      // in a separate state below, though that could be updated
+      // to handle here like this instead.)
+      if (address_m == LED_RED_STATUS_ADDRESS) begin
+        in_m <= status_red_led;
+      end else if (address_m == LED_GRN_STATUS_ADDRESS) begin
+        in_m <= status_grn_led;
+      end else if (address_m == LED_BLU_STATUS_ADDRESS) begin
+        in_m <= status_blu_led;
+      end
+
       // All CPU inputs are now valid. But update RX before
       // lifting the hold and executing an instruction.
       state <= UPDATE_RX;
@@ -726,7 +777,19 @@ always @(posedge CLK) begin
       if ((address_m_latch == RX_STATUS_ADDRESS) & (write_m_latch == 1)) begin
         // Only read final bit of RX_STATUS_ADDRESS
         shadow_rx_status <= {15'b0, out_m_latch[0]};
-      end    
+      end
+
+      // Are we writing to an RGB LED control register? If so, update
+      // the corresponding register connected to the LED module
+      if ((address_m_latch == LED_RED_CONTROL_ADDRESS) & (write_m_latch == 1)) begin
+        control_red_led <= out_m_latch;
+      end
+      if ((address_m_latch == LED_GRN_CONTROL_ADDRESS) & (write_m_latch == 1)) begin
+        control_grn_led <= out_m_latch;
+      end
+      if ((address_m_latch == LED_BLU_CONTROL_ADDRESS) & (write_m_latch == 1)) begin
+        control_blu_led <= out_m_latch;
+      end
 
       // Are we writing to TX (15'd24577)? If so, go to START_UART_LOOP_SEND
       // to write the byte out. Else, go back to START_NEXT_CPU_LOOP_ROUND.

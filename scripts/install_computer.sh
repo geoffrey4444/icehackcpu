@@ -18,6 +18,7 @@ $SCRIPT_DIR/install.sh -p $PAYLOAD_FILE \
   ./computer/cpu.v \
   ./math/alu.v \
   ./math/add.v \
-  ./logic/gates.v
+  ./logic/gates.v \
+  ./led/led.v
 
 echo "Done!"

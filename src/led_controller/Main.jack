@@ -1,0 +1,86 @@
+class Main {
+  function int get_brightness() {
+    var String response;
+    var int result;
+
+    let response = String.new(24);
+
+    do Output.printString("Enter a brightness:\n\r> ");
+    do response.read(true);
+    do Output.printString("\n\r");
+    let result = response.intValue();
+
+    do response.dispose();
+    if (result = 0) {
+      return 0;
+    }
+    return (result + 1);
+  }
+
+  function void main () {
+    var String welcome, prompt, instructions;
+    var String command;
+
+    let welcome = "Welcome to LED Controller.\n\r";
+    let instructions = "To read the status of an LED, type 'r' for red, 'g' for green, or 'b' for blue.\n\rTo set an LED, type 'sr' for red, 'sg' for green, or 'sb' for blue.\n\r\n\r";
+    let prompt = "> ";
+
+    let command = String.new(24);
+
+    do Output.printString(welcome);
+    do Output.printString(instructions);
+
+    while (true) {
+      do Output.printString(prompt);
+      do command.read(true); // read a command from user input
+      do Output.printString("\n\r");
+      if ((command.length()) > 2) {
+        do Output.printString("Your command could not be recognized.\n\r");
+        do Output.printString(instructions);        
+      }
+      if ((command.length()) = 2) {
+        if (~((command.charAt(0)) = 115)) {
+          do Output.printString("Your command could not be recognized.\n\r");
+          do Output.printString(instructions);
+        }
+        if (((~(command.charAt(1) = 114)) & ((~(command.charAt(1) = 103))) & ((~(command.charAt(1) = 98))))) {
+          do Output.printString("Second character in set command must be r, g, or b.\n\r");
+          do Output.printString(instructions);
+        }
+      }
+      if ((command.length()) = 1) {
+        if (((~(command.charAt(0) = 114)) & ((~(command.charAt(0) = 103))) & ((~(command.charAt(0) = 98))))) {
+          do Output.printString("Your command could not be recognized.\n\r");
+          do Output.printString(instructions);
+        }
+      }
+
+      if ((command.charAt(0)) = 115) {
+        if ((command.charAt(1)) = 114) {
+          do Memory.poke(24580, Main.get_brightness());
+        }
+        if ((command.charAt(1)) = 103) {
+          do Memory.poke(24581, Main.get_brightness());
+        }
+        if ((command.charAt(1)) = 98) {
+          do Memory.poke(24582, Main.get_brightness());
+        }
+      } else {
+        if ((command.charAt(0)) = 114) {
+          do Output.printInt(Memory.peek(24583));
+        }
+        if ((command.charAt(0)) = 103) {
+          do Output.printInt(Memory.peek(24584));
+        }
+        if ((command.charAt(0)) = 98) {
+          do Output.printInt(Memory.peek(24585));
+        }
+        do Output.printString("\n\r");
+      }
+    }
+
+    do command.dispose();
+
+    return;
+  }
+}
