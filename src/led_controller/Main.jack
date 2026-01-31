@@ -1,16 +1,13 @@
 class Main {
+  static String response;
   function int get_brightness() {
-    var String response;
-    var int result;
-
-    let response = String.new(255);
+    var int result;    
 
     do Output.printString("Enter a brightness:\n\r> ");
     do response.read(true);
     do Output.printString("\n\r");
     let result = response.intValue();
 
-    do response.dispose();
     if (result = 0) {
       return 0;
     }
@@ -26,6 +23,7 @@ class Main {
     let prompt = "> ";
 
     let command = String.new(255);
+    let response = String.new(255);
 
     do Output.printString(welcome);
     do Output.printString(instructions);
@@ -80,6 +78,7 @@ class Main {
     }
 
     do command.dispose();
+    do response.dispose();
 
     return;
   }
