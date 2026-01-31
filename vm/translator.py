@@ -455,8 +455,10 @@ M=D
 
     return result
 
-
 def write_return():
+    return "@VM_RETURN\n0;JMP\n"
+
+def write_common_return_code():
     # frame = LCL (R13)
     # return_address = *(frame - 5) (R14)
     # *arg = pop() (overwrite first input parameter with function result)
@@ -468,6 +470,7 @@ def write_return():
     # goto return_address
 
     result = """
+(VM_RETURN)
 // frame = LCL (R13)
 @LCL
 D=M
@@ -690,6 +693,7 @@ M=D
             else:
                 print(f"Error: unknown command {command_name}")
                 exit(1)
+    assembly_code += write_common_return_code()
     if args.write_prolog_and_epilog:
         assembly_code += write_epilog()
     print(assembly_code)
