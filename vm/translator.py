@@ -404,12 +404,20 @@ def write_function(function_name, function_number_of_local_variables):
         result += write_pushpop("push", "constant", "0", "")
     return result
 
-
-def write_call(
-    function_to_call, function_number_of_arguments, current_function, call_counter
-):
+def write_call(function_to_call, function_number_of_arguments, current_function, call_counter):
+    # Put callee address in R13, return address in R15, number of arguments in R14
     result = f"// call {function_to_call} {function_number_of_arguments}\n"
     return_address = f"{current_function}$ret.{call_counter}"
+    result += f"@{return_address}\nD=A\n@R15\nM=D\n"
+    result += f"@{function_to_call}\nD=A\n@R13\nM=D\n"
+    result += f"@{function_number_of_arguments}\nD=A\n@R14\nM=D\n"
+    # Jump to common call code
+    result += f"@VM_CALL\n0;JMP\n"
+    # (return_address)
+    result += f"({return_address})\n"
+    return result
+
+def write_common_call_code():
     push_d_to_stack = """\
 @SP
 A=M
@@ -417,8 +425,9 @@ M=D
 @SP
 M=M+1
 """
+    result = "(VM_CALL)\n"
     # push return address
-    result += f"@{return_address}\nD=A\n{push_d_to_stack}"
+    result += f"@R15\nD=M\n{push_d_to_stack}"
     # push LCL
     result += f"@LCL\nD=M\n{push_d_to_stack}"
     # push ARG
@@ -433,8 +442,8 @@ M=M+1
 D=M
 @5
 D=D-A
-@{function_number_of_arguments}
-D=D-A
+@R14
+D=D-M
 @ARG
 M=D
 """
@@ -447,12 +456,10 @@ M=D
 """
     # goto function_name
     result += f"""
-@{function_to_call}
+@R13
+A=M
 0;JMP
 """
-    # (return_address)
-    result += f"({return_address})\n"
-
     return result
 
 def write_return():
@@ -694,6 +701,8 @@ M=D
                 print(f"Error: unknown command {command_name}")
                 exit(1)
     assembly_code += write_common_return_code()
+    assembly_code += write_common_call_code()
+
     if args.write_prolog_and_epilog:
         assembly_code += write_epilog()
     print(assembly_code)
