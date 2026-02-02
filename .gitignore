@@ -7,3 +7,4 @@ computer/test_vm_functions.asm
 computer/test_vm_functions.hack
 screenlog*
 capture.bin
+*__pycache__
