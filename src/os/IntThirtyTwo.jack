@@ -1,0 +1,99 @@
+class IntThirtyTwo {
+  // When adding multiplication and division, will need a bunch of 
+  // precomputed powers of two
+  // static Array two_to_the_power_thirty_two;
+  static int bias;
+  field int value_lo;
+  field int value_hi;
+
+  function void init() {
+    let bias = 32767;
+    let bias = -bias;
+    let bias = bias - 1;
+    return;
+  }
+
+  constructor IntThirtyTwo new(int hi, int lo) {
+    let this = Memory.alloc(2);
+    let value_lo = lo;
+    let value_hi = hi;
+    return this;
+  }
+
+  method int lo() {
+    return value_lo;
+  }
+
+  method int hi() {
+    return value_hi;
+  }
+
+  function IntThirtyTwo add(IntThirtyTwo a, IntThirtyTwo b) {
+    var int a_lo, b_lo, a_hi, b_hi, sum_lo, sum_hi;
+    var int a_lo_bias, sum_lo_bias;
+    // first, add the low bits
+    let a_lo = a.lo();
+    let b_lo = b.lo();
+    let a_hi = a.hi();
+    let b_hi = b.hi();
+    let sum_lo = a_lo + b_lo;
+
+    // Get carry out
+    // We would normally want unsigned compare to check for carry, but
+    // we only have signed compare. We can do unsigned compare by
+    // biasing by 0x8000 = -32768, stored as static variable bias
+    
+    let a_lo_bias = a_lo + bias;
+    let sum_lo_bias = sum_lo + bias;    
+
+    // add high portions
+    let sum_hi = a_hi + b_hi;
+
+    // if carry, add 1 to the result
+    if (sum_lo_bias < a_lo_bias) {
+      let sum_hi = sum_hi + 1;
+    }
+
+    return IntThirtyTwo.new(sum_hi, sum_lo);
+  }
+
+  function IntThirtyTwo neg(IntThirtyTwo a) {
+    var int lo, hi;
+    let lo = a.lo();
+    let hi = a.hi();
+    let lo = (~lo);
+    let hi = (~hi);
+    let lo = lo + 1;
+    if (lo = 0) {
+      // carry
+      let hi = hi + 1;
+    }
+    
+    return IntThirtyTwo.new(hi, lo);
+  }
+
+  function IntThirtyTwo sub(IntThirtyTwo a, IntThirtyTwo b) {
+    var IntThirtyTwo result, minus_b;
+    let minus_b = IntThirtyTwo.neg(b);
+
+    let result = IntThirtyTwo.add(a, minus_b);
+    do minus_b.dispose();
+    return result;
+  }
+
+  function IntThirtyTwo from_int(int x) {
+    var lo, hi;
+    let lo = x;
+    if (x < 0) {
+      let hi = -1;
+    } else {
+      let hi = 0;
+    }
+    return IntThirtyTwo.new(hi, lo);
+  }
+
+  method void dispose() {
+    do Memory.deAlloc(this);
+    return;
+  }
+}
