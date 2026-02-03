@@ -126,7 +126,7 @@ class IntThirtyTwo {
     return;
   }
 
-  // Minus_b is a temporary. It should not alias other variables passed in to this function.
+  // Minus_b is a temporary. It should not alias diff, a, or b
   function void sub(IntThirtyTwo diff, IntThirtyTwo minus_b, IntThirtyTwo a, IntThirtyTwo b) {
     do IntThirtyTwo.neg(minus_b, b);
     do IntThirtyTwo.add(diff, a, minus_b);
@@ -175,6 +175,97 @@ class IntThirtyTwo {
       do IntThirtyTwo.add(two_to_the_i, two_to_the_i, two_to_the_i);
       let i = i + 1;
     }
+
+    return;
+  }
+
+  // Note: temp_a, temp_b, temp_c, and temp_d are temporaries and must not alias each other or quotient
+  function void unsigned_divide_recursive(IntThirtyTwo quotient, int x_hi, int x_lo, int y_hi, int y_lo, IntThirtyTwo temp_a, IntThirtyTwo temp_b, IntThirtyTwo temp_c, IntThirtyTwo temp_d) {
+    var int two_y_hi, two_y_lo;
+
+    // Cannot divide by zero; halt if user attempts thi
+    if ((y_lo = 0) & (y_hi = 0)) {
+      do Output.printString("error: unsigned divide by zero\n\r");
+      do Sys.halt();
+    }
+
+    // Checks that let us return 0 right away
+    // temp_a = x, temp_b = y
+    do temp_a.setHi(x_hi);
+    do temp_a.setLo(x_lo);
+    do temp_b.setHi(y_hi);
+    do temp_b.setLo(y_lo);
+
+    if (((x_hi = 0) & (x_lo = 0)) | (IntThirtyTwo.ult(temp_a, temp_b))) {
+      do quotient.setHi(0);
+      do quotient.setLo(0);
+      return;
+    }
+
+    if (IntThirtyTwo.eq(temp_a, temp_b)) {
+      do quotient.setHi(0);
+      do quotient.setLo(1);
+      return;
+    }
+
+    // temp_c = 2 * temp_b = 2 * y
+    do IntThirtyTwo.add(temp_c, temp_b, temp_b);
+    let two_y_hi = temp_c.hi();
+    let two_y_lo = temp_c.lo();
+
+    if (IntThirtyTwo.ult(temp_c, temp_b)) {
+      // If 2 * y overflows, then stop recursing. And since the true value
+      // of 2 *y must be > x, since it overflowed, return 0.
+      do quotient.setHi(0);
+      do quotient.setLo(0);
+      return;
+    }
+
+    // Stop recursion if 2 * y > x ... further recursion will just return 0.
+    // x is still in temp_a
+    if (IntThirtyTwo.ult(temp_a, temp_c)) {
+      do quotient.setHi(0);
+      do quotient.setLo(0);
+      return;
+    }
+
+    // Recursive call... temp_a, temp_b, temp_c values unknown after this call
+    // Quotient uninitialized before this call, will have a meaningful value
+    // after the call that includes results from all recursions below.
+    do IntThirtyTwo.unsigned_divide_recursive(quotient, x_hi, x_lo, two_y_hi, two_y_lo, temp_a, temp_b, temp_c, temp_d);
+
+    // quotient, temp_a = -y (unused temporary in subtraction), 
+    // temp_d = y
+    // temp_b = q * y
+    // Unsigned multiply needs two temporaries, so use temp_a and temp_c
+    do temp_d.setHi(y_hi);
+    do temp_d.setLo(y_lo);
+    do IntThirtyTwo.unsigned_multiply(temp_b, quotient, temp_d, temp_a, temp_c);
+
+    // temp_c = x - q * y - q * y
+    do temp_d.setHi(x_hi);
+    do temp_d.setLo(x_lo);
+    do IntThirtyTwo.sub(temp_c, temp_a, temp_d, temp_b);
+    do IntThirtyTwo.sub(temp_c, temp_a, temp_c, temp_b);
+    
+    do IntThirtyTwo.add(quotient, quotient, quotient);
+
+    do temp_d.setHi(y_hi);
+    do temp_d.setLo(y_lo);
+    if (~(IntThirtyTwo.ult(temp_c, temp_d))) {
+      // temp_a = 1
+      do temp_a.setHi(0);
+      do temp_a.setLo(1);
+      do IntThirtyTwo.add(quotient, quotient, temp_a);
+    }
+    
+    return;
+  }
+
+  // Note: temp_a, temp_b, temp_c are temporaries and must not alias each other or x or y or quotient
+  // Also: quotient must not alias x or y
+  function void unsigned_divide(IntThirtyTwo quotient, IntThirtyTwo x, IntThirtyTwo y, IntThirtyTwo temp_a, IntThirtyTwo temp_b, IntThirtyTwo temp_c, IntThirtyTwo temp_d) {    
+    do IntThirtyTwo.unsigned_divide_recursive(quotient, x.hi(), x.lo(), y.hi(), y.lo(), temp_a, temp_b, temp_c, temp_d);
 
     return;
   }

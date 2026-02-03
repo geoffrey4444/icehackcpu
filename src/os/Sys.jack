@@ -2,6 +2,7 @@ class Sys {
   function void init() {
     do Memory.init();
     do Math.init();
+    do IntThirtyTwo.init();
     
     do Main.main();
     do Sys.halt();
