@@ -1,7 +1,6 @@
 class IntThirtyTwo {
   // When adding multiplication and division, will need a bunch of 
   // precomputed powers of two
-  // static Array two_to_the_power_thirty_two;
   static int bias;
   field int value_lo;
   field int value_hi;
@@ -28,7 +27,15 @@ class IntThirtyTwo {
     return value_hi;
   }
 
-  function IntThirtyTwo add(IntThirtyTwo a, IntThirtyTwo b) {
+  method void setHi(int hi) {
+    let value_hi = hi;
+  }
+
+  method void setLo(int lo) {
+    let value_lo = lo;
+  }
+
+  function void add(IntThirtyTwo sum, IntThirtyTwo a, IntThirtyTwo b) {
     var int a_lo, b_lo, a_hi, b_hi, sum_lo, sum_hi;
     var int a_lo_bias, sum_lo_bias;
     // first, add the low bits
@@ -54,10 +61,12 @@ class IntThirtyTwo {
       let sum_hi = sum_hi + 1;
     }
 
-    return IntThirtyTwo.new(sum_hi, sum_lo);
+    do sum.setHi(sum_hi);
+    do sum.setLo(sum_lo);
+    return;
   }
 
-  function IntThirtyTwo neg(IntThirtyTwo a) {
+  function void neg(IntThirtyTwo minus_a, IntThirtyTwo a) {
     var int lo, hi;
     let lo = a.lo();
     let hi = a.hi();
@@ -69,27 +78,65 @@ class IntThirtyTwo {
       let hi = hi + 1;
     }
     
-    return IntThirtyTwo.new(hi, lo);
+    do minus_a.setHi(hi);
+    do minus_a.setLo(lo);
+    return;
   }
 
-  function IntThirtyTwo sub(IntThirtyTwo a, IntThirtyTwo b) {
-    var IntThirtyTwo result, minus_b;
-    let minus_b = IntThirtyTwo.neg(b);
-
-    let result = IntThirtyTwo.add(a, minus_b);
+  function void sub(IntThirtyTwo diff, IntThirtyTwo a, IntThirtyTwo b) {
+    var IntThirtyTwo minus_b;
+    let minus_b = IntThirtyTwo.new(0, 0);
+    do IntThirtyTwo.neg(minus_b, b);
+    do IntThirtyTwo.add(diff, a, minus_b);
     do minus_b.dispose();
-    return result;
+    return;
   }
 
-  function IntThirtyTwo from_int(int x) {
-    var lo, hi;
+  function void from_int(IntThirtyTwo x_thirty_two, int x) {
+    var int lo, hi;
     let lo = x;
     if (x < 0) {
       let hi = -1;
     } else {
       let hi = 0;
     }
-    return IntThirtyTwo.new(hi, lo);
+    do x_thirty_two.setHi(hi);
+    do x_thirty_two.setLo(lo);
+    return;
+  }
+
+  // This function makes no effort to handle signs; use it only with
+  // nonnegative 32-bit integers
+  function void unsigned_multiply(IntThirtyTwo product, IntThirtyTwo x, IntThirtyTwo y) {
+    var IntThirtyTwo two_to_the_i;        
+    var IntThirtyTwo shifted_x;
+    var int i, ith_bit_of_y_hi, ith_bit_of_y_lo, y_hi, y_lo;
+
+    let i = 0;
+    do product.setHi(0);
+    do product.setLo(0);
+    let shifted_x = IntThirtyTwo.new(x.hi(), x.lo());
+    let two_to_the_i = IntThirtyTwo.new(0,1);
+    let y_hi = y.hi();
+    let y_lo = y.lo();
+
+    while (i < 32) {
+      let ith_bit_of_y_hi = (two_to_the_i.hi()) & (y_hi);
+      let ith_bit_of_y_lo = (two_to_the_i.lo()) & (y_lo);
+
+      if ((~(ith_bit_of_y_hi = 0)) | (~(ith_bit_of_y_lo = 0))) {
+        do IntThirtyTwo.add(product, product, shifted_x);
+      }
+
+      do IntThirtyTwo.add(shifted_x, shifted_x, shifted_x);
+      do IntThirtyTwo.add(two_to_the_i, two_to_the_i, two_to_the_i);
+      let i = i + 1;
+    }
+
+    do shifted_x.dispose();
+    do two_to_the_i.dispose();
+
+    return;
   }
 
   method void dispose() {
