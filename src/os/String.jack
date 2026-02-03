@@ -129,6 +129,46 @@ class String {
     return;
   }
 
+  method void setValueDigitsIntThirtyTwo(int value_hi, int value_lo, IntThirtyTwo temp_a, IntThirtyTwo temp_b, IntThirtyTwo temp_c, IntThirtyTwo temp_d, IntThirtyTwo temp_e, IntThirtyTwo temp_f, IntThirtyTwo temp_g) {
+    var int tenth_of_value_hi, tenth_of_value_lo;
+    do temp_f.setHi(0);
+    do temp_f.setLo(10);
+    do temp_e.setHi(value_hi);
+    do temp_e.setLo(value_lo);
+    do IntThirtyTwo.unsigned_divide(temp_g, temp_e, temp_f, temp_a, temp_b, temp_c, temp_d);
+    let tenth_of_value_hi = temp_g.hi();
+    let tenth_of_value_lo = temp_g.lo();
+
+    if (~((tenth_of_value_hi = 0) & (tenth_of_value_lo = 0))) {
+      do setValueDigitsIntThirtyTwo(tenth_of_value_hi, tenth_of_value_lo, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    }
+
+    // temp values unknown after recursive call
+    // remainder = temp_g = value - 10 * (value / 10)
+    // temp_f = 10 * value / 10
+    // temp_e = 10
+    // temp_d = value / 10
+    do temp_d.setHi(tenth_of_value_hi);
+    do temp_d.setLo(tenth_of_value_lo);
+    do temp_e.setHi(0);
+    do temp_e.setLo(10);
+    do IntThirtyTwo.unsigned_multiply(temp_f, temp_e, temp_d, temp_a, temp_b);
+    do temp_c.setHi(value_hi);
+    do temp_c.setLo(value_lo);
+    do IntThirtyTwo.sub(temp_g, temp_a, temp_c, temp_f);
+
+    // remainder must be between 0 and 9, inclusive, so look at remainder.lo()
+    do appendChar(48 + (temp_g.lo()));
+    return;
+  }
+
+  // note: temp_a, temp_b, temp_c, temp_d must not shadow value
+  method void setValueIntThirtyTwo(IntThirtyTwo value, IntThirtyTwo temp_a, IntThirtyTwo temp_b, IntThirtyTwo temp_c, IntThirtyTwo temp_d, IntThirtyTwo temp_e, IntThirtyTwo temp_f, IntThirtyTwo temp_g) {
+    do clear();
+    do setValueDigitsIntThirtyTwo(value.hi(), value.lo(), temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    return;
+  }
+
   method int intValue() {
     var int result, i, digit_value;
     let i = 0;
