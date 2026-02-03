@@ -35,9 +35,58 @@ class IntThirtyTwo {
     let value_lo = lo;
   }
 
+  function boolean ultSixteen(int a, int b) {
+    if ((a + bias) < (b + bias)) {
+      return true;
+    }
+    return false;
+  }
+
+  function boolean ugtSixteen(int a, int b) {
+    return IntThirtyTwo.ultSixteen(b, a);
+  }
+
+  function boolean ult(IntThirtyTwo a, IntThirtyTwo b) {
+    // Unsigned compare
+    // Strategy: first, compare high halves
+    // If high halves are equal, compare low halves
+    var int a_hi, b_hi, a_lo, b_lo;
+    let a_hi = a.hi();
+    let b_hi = b.hi();
+    if (IntThirtyTwo.ultSixteen(a_hi, b_hi)) {
+      return true;
+    }
+    if (IntThirtyTwo.ultSixteen(b_hi, a_hi)) {
+      return false;
+    }
+    let a_lo = a.lo();
+    let b_lo = b.lo();
+    if (IntThirtyTwo.ultSixteen(a_lo, b_lo)) {
+      return true;
+    } 
+    return false;
+  }
+
+  function boolean ugt(IntThirtyTwo a, IntThirtyTwo b) {
+    return IntThirtyTwo.ult(b, a);
+  }
+
+  function boolean eq(IntThirtyTwo a, IntThirtyTwo b) {
+    var int a_hi, a_lo, b_hi, b_lo;
+    let a_hi = a.hi();
+    let b_hi = b.hi();
+    if (a_hi = b_hi) {
+      let a_lo = a.lo();
+      let b_lo = b.lo();
+      if (a_lo = b_lo) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function void add(IntThirtyTwo sum, IntThirtyTwo a, IntThirtyTwo b) {
     var int a_lo, b_lo, a_hi, b_hi, sum_lo, sum_hi;
-    var int a_lo_bias, sum_lo_bias;
     // first, add the low bits
     let a_lo = a.lo();
     let b_lo = b.lo();
@@ -45,19 +94,13 @@ class IntThirtyTwo {
     let b_hi = b.hi();
     let sum_lo = a_lo + b_lo;
 
-    // Get carry out
-    // We would normally want unsigned compare to check for carry, but
-    // we only have signed compare. We can do unsigned compare by
-    // biasing by 0x8000 = -32768, stored as static variable bias
-    
-    let a_lo_bias = a_lo + bias;
-    let sum_lo_bias = sum_lo + bias;    
-
     // add high portions
     let sum_hi = a_hi + b_hi;
 
     // if carry, add 1 to the result
-    if (sum_lo_bias < a_lo_bias) {
+    // Note: if the sum is (unsigned compare) < either addend, overflow,
+    // so carry
+    if (IntThirtyTwo.ultSixteen(sum_lo, a_lo)) {
       let sum_hi = sum_hi + 1;
     }
 
@@ -83,12 +126,10 @@ class IntThirtyTwo {
     return;
   }
 
-  function void sub(IntThirtyTwo diff, IntThirtyTwo a, IntThirtyTwo b) {
-    var IntThirtyTwo minus_b;
-    let minus_b = IntThirtyTwo.new(0, 0);
+  // Minus_b is a temporary. It should not alias other variables passed in to this function.
+  function void sub(IntThirtyTwo diff, IntThirtyTwo minus_b, IntThirtyTwo a, IntThirtyTwo b) {
     do IntThirtyTwo.neg(minus_b, b);
     do IntThirtyTwo.add(diff, a, minus_b);
-    do minus_b.dispose();
     return;
   }
 
@@ -107,16 +148,18 @@ class IntThirtyTwo {
 
   // This function makes no effort to handle signs; use it only with
   // nonnegative 32-bit integers
-  function void unsigned_multiply(IntThirtyTwo product, IntThirtyTwo x, IntThirtyTwo y) {
-    var IntThirtyTwo two_to_the_i;        
-    var IntThirtyTwo shifted_x;
+  // Note: shifted_x and two_to_the_i are temporaries. Pass them in so as not to have to allocate on each call.
+  // They should not alias other variables passed in here.
+  function void unsigned_multiply(IntThirtyTwo product, IntThirtyTwo x, IntThirtyTwo y, IntThirtyTwo shifted_x, IntThirtyTwo two_to_the_i) {
     var int i, ith_bit_of_y_hi, ith_bit_of_y_lo, y_hi, y_lo;
 
     let i = 0;
     do product.setHi(0);
     do product.setLo(0);
-    let shifted_x = IntThirtyTwo.new(x.hi(), x.lo());
-    let two_to_the_i = IntThirtyTwo.new(0,1);
+    do shifted_x.setHi(x.hi());
+    do shifted_x.setLo(x.lo());
+    do two_to_the_i.setHi(0);
+    do two_to_the_i.setLo(1);
     let y_hi = y.hi();
     let y_lo = y.lo();
 
@@ -132,9 +175,6 @@ class IntThirtyTwo {
       do IntThirtyTwo.add(two_to_the_i, two_to_the_i, two_to_the_i);
       let i = i + 1;
     }
-
-    do shifted_x.dispose();
-    do two_to_the_i.dispose();
 
     return;
   }
