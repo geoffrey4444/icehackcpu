@@ -27,38 +27,47 @@ class Main {
     do value_a.setLo(a);
     do value_b.setLo(b);
 
-    do value_d.setHi(0);
-    do value_d.setLo(1234);
-    do number_to_print.setValueIntThirtyTwo(value_d, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString("Setting a\r\n");
+    do value_a.setHi(0);
+    do value_a.setLo(1234);
+    do Output.printString("Calling setValueIntThirtyTwo a\r\n");
+    do number_to_print.setValueIntThirtyTwo(value_a, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString("Outputting a\r\n");
     do Output.printString(number_to_print);
-    do Output.printString("\n\r");
-    do value_d.setHi(0);
-    do value_d.setLo(5678);
-    do number_to_print.setValueIntThirtyTwo(value_d, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString("\r\n");
+    do Output.printString("Setting b\r\n");
+    do value_b.setHi(0);
+    do value_b.setLo(5678);
+    do Output.printString("Calling setValueIntThirtyTwo b\r\n");
+    do number_to_print.setValueIntThirtyTwo(value_b, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString("Printing b\r\n");
     do Output.printString(number_to_print);
-    do Output.printString("\n\r");
+    do Output.printString("\r\n");
 
+    do Output.printString("Multiplying c = a * b\r\n");
+    do IntThirtyTwo.unsigned_multiply(value_c, value_a, value_b, temp_a, temp_b);
+    do Output.printString("Calling setValueIntThirtyTwo c\r\n");
+    do number_to_print.setValueIntThirtyTwo(value_c, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString("Printing c\r\n");
+    do Output.printString(number_to_print);
+    do Output.printString("\r\n");
 
-    // do number_to_print.setValueIntThirtyTwo(value_b, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
-    // do Output.printString(number_to_print);
-    // do Output.printString("\n\r");
-
-    // do IntThirtyTwo.unsigned_multiply(value_c, value_a, value_b, temp_a, temp_b);
+    /*
     do IntThirtyTwo.add(value_c, value_a, value_b);
     do IntThirtyTwo.add(value_c, value_c, value_b);
     do Output.printInt(value_c.lo());
-    do Output.printString("\n\r");
+    do Output.printString("\r\n");
     do Output.printInt(value_c.hi());
-    do Output.printString("\n\r");
+    do Output.printString("\r\n");
 
     do value_b.setHi(x_hi);
     do value_b.setLo(x_lo);
     do IntThirtyTwo.sub(value_c, temp_a, value_c, value_b);
     do Output.printInt(value_c.lo());
-    do Output.printString("\n\r");
+    do Output.printString("\r\n");
     do Output.printInt(value_c.hi());
-    do Output.printString("\n\r"); 
-
+    do Output.printString("\r\n"); 
+    */
 
     do number_to_print.dispose();
     do value_a.dispose();
