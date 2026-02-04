@@ -1,0 +1,75 @@
+class Main {
+  function void main() {
+    var IntThirtyTwo temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g;
+    var IntThirtyTwo value_a, value_b, value_c, value_d;
+    var int a, b, x_hi, x_lo;
+    var String number_to_print;
+
+    let value_a = IntThirtyTwo.new(0, 0);
+    let value_b = IntThirtyTwo.new(0, 0);
+    let value_c = IntThirtyTwo.new(0, 0);
+    let value_d = IntThirtyTwo.new(0, 0);
+    let temp_a = IntThirtyTwo.new(0, 0);
+    let temp_b = IntThirtyTwo.new(0, 0);
+    let temp_d = IntThirtyTwo.new(0, 0);
+    let temp_c = IntThirtyTwo.new(0, 0);
+    let temp_e = IntThirtyTwo.new(0, 0);
+    let temp_f = IntThirtyTwo.new(0, 0);
+    let temp_g = IntThirtyTwo.new(0, 0);
+    let number_to_print = String.new(255);
+
+    let a = 30000;
+    let b = 17770;
+    let x_hi = 0;
+    let x_lo = 32748;
+    let x_lo = x_lo + x_lo;
+   
+    do value_a.setLo(a);
+    do value_b.setLo(b);
+
+    do value_d.setHi(0);
+    do value_d.setLo(1234);
+    do number_to_print.setValueIntThirtyTwo(value_d, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString(number_to_print);
+    do Output.printString("\n\r");
+    do value_d.setHi(0);
+    do value_d.setLo(5678);
+    do number_to_print.setValueIntThirtyTwo(value_d, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    do Output.printString(number_to_print);
+    do Output.printString("\n\r");
+
+
+    // do number_to_print.setValueIntThirtyTwo(value_b, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+    // do Output.printString(number_to_print);
+    // do Output.printString("\n\r");
+
+    // do IntThirtyTwo.unsigned_multiply(value_c, value_a, value_b, temp_a, temp_b);
+    do IntThirtyTwo.add(value_c, value_a, value_b);
+    do IntThirtyTwo.add(value_c, value_c, value_b);
+    do Output.printInt(value_c.lo());
+    do Output.printString("\n\r");
+    do Output.printInt(value_c.hi());
+    do Output.printString("\n\r");
+
+    do value_b.setHi(x_hi);
+    do value_b.setLo(x_lo);
+    do IntThirtyTwo.sub(value_c, temp_a, value_c, value_b);
+    do Output.printInt(value_c.lo());
+    do Output.printString("\n\r");
+    do Output.printInt(value_c.hi());
+    do Output.printString("\n\r"); 
+
+
+    do number_to_print.dispose();
+    do value_a.dispose();
+    do value_b.dispose();
+    do value_c.dispose();
+    do temp_a.dispose();
+    do temp_b.dispose();
+    do temp_c.dispose();
+    do temp_d.dispose();
+    do temp_e.dispose();
+    do temp_f.dispose();
+    do temp_g.dispose();
+  }
+}

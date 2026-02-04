@@ -13,7 +13,6 @@ class IntThirtyTwo {
   }
 
   constructor IntThirtyTwo new(int hi, int lo) {
-    let this = Memory.alloc(2);
     let value_lo = lo;
     let value_hi = hi;
     return this;
@@ -183,7 +182,7 @@ class IntThirtyTwo {
   function void unsigned_divide_recursive(IntThirtyTwo quotient, int x_hi, int x_lo, int y_hi, int y_lo, IntThirtyTwo temp_a, IntThirtyTwo temp_b, IntThirtyTwo temp_c, IntThirtyTwo temp_d) {
     var int two_y_hi, two_y_lo;
 
-    // Cannot divide by zero; halt if user attempts thi
+    // Cannot divide by zero; halt if user attempts this
     if ((y_lo = 0) & (y_hi = 0)) {
       do Output.printString("error: unsigned divide by zero\n\r");
       do Sys.halt();
@@ -222,17 +221,16 @@ class IntThirtyTwo {
     }
 
     // Stop recursion if 2 * y > x ... further recursion will just return 0.
-    // x is still in temp_a
-    if (IntThirtyTwo.ult(temp_a, temp_c)) {
+    // x is still in temp_a.
+    if (~(IntThirtyTwo.ult(temp_a, temp_c))) {
+      // Recursive call... temp_a, temp_b, temp_c values unknown after this call
+      // Quotient uninitialized before this call, will have a meaningful value
+      // after the call that includes results from all recursions below.
+      do IntThirtyTwo.unsigned_divide_recursive(quotient, x_hi, x_lo, two_y_hi, two_y_lo, temp_a, temp_b, temp_c, temp_d);
+    } else {
       do quotient.setHi(0);
       do quotient.setLo(0);
-      return;
     }
-
-    // Recursive call... temp_a, temp_b, temp_c values unknown after this call
-    // Quotient uninitialized before this call, will have a meaningful value
-    // after the call that includes results from all recursions below.
-    do IntThirtyTwo.unsigned_divide_recursive(quotient, x_hi, x_lo, two_y_hi, two_y_lo, temp_a, temp_b, temp_c, temp_d);
 
     // quotient, temp_a = -y (unused temporary in subtraction), 
     // temp_d = y
