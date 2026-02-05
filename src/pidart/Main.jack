@@ -1,0 +1,62 @@
+class Main {
+  function void main() {
+    var RandomLCG gen;
+    var IntThirtyTwo number_to_print;
+    var String digits;
+    var IntThirtyTwo temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g;
+    var IntThirtyTwo x, y, x_sq, y_sq, r_sq, circ_r_sq;
+    var int i, hits;
+
+    do Output.printString("Beginning pi dartboard calculation...\r\n");
+
+    let gen = RandomLCG.new(44, 44);
+    let digits = String.new(255);
+    let number_to_print = IntThirtyTwo.new(0, 0);
+
+    let temp_a = IntThirtyTwo.new(0, 0);
+    let temp_b = IntThirtyTwo.new(0, 0);
+    let temp_d = IntThirtyTwo.new(0, 0);
+    let temp_c = IntThirtyTwo.new(0, 0);
+    let temp_e = IntThirtyTwo.new(0, 0);
+    let temp_f = IntThirtyTwo.new(0, 0);
+    let temp_g = IntThirtyTwo.new(0, 0);
+
+    let x = IntThirtyTwo.new(0, 0);
+    let x_sq = IntThirtyTwo.new(0, 0);
+    let y = IntThirtyTwo.new(0, 0);
+    let y_sq = IntThirtyTwo.new(0, 0);
+    let r_sq = IntThirtyTwo.new(0, 0);
+
+    // In circle if r <= 32767 (length of square side), or if 
+      // r * r < 32767^2 = 1,073,676,289 = 0x3FFF0001, hi = 16383, lo = 1
+    let circ_r_sq = IntThirtyTwo.new(16383, 1);
+
+    let i = 0;
+    let hits = 0;
+
+    while (i < 100) {
+      // Throw a dart. Dart lands at (x,y), where 0 <= x, y <= 32767.
+      do Output.printString("Throwing dart...\r\n");
+      do x.setLo(gen.random());
+      do x.setHi(0);
+      do y.setLo(gen.random());
+      do y.setHi(0);
+      do IntThirtyTwo.unsigned_multiply(x_sq, x, x, temp_a, temp_b);
+      do IntThirtyTwo.unsigned_multiply(y_sq, y, y, temp_a, temp_b);
+      do IntThirtyTwo.add(r_sq, x_sq, y_sq);
+      if (IntThirtyTwo.ult(r_sq, circ_r_sq)) {
+        let hits = hits + 1;
+      }
+      let i = i + 1;
+    }
+
+    do Output.printString("Hits: ");
+    do Output.printInt(hits);
+    do Output.printString("\r\n");
+    do Output.printString("Darts thrown: ");
+    do Output.printInt(i);
+    do Output.printString("\r\n");
+
+    return;
+  }
+}

@@ -1,0 +1,70 @@
+// A linear congruence generator RNG using IntThirtyTwo states
+// with Weyl sequence to reduce correlation
+// next() returns a random 15-bit int, using internally 32-bit state
+// state: 2 32-bit integers: r, w
+// update: r -> a * r + b (mod 32)
+//         w -> w + c (mod 32)
+//         m -> r + w (mod 32)
+//         return m.hi() & 32767 // the & zeros the high bit
+// Magic numbers from chatgpt
+// Parameters from wikipedia, which are from Numerical Recipes via
+// Knuth and H. W. Lewis:
+// a = 1664525 = 0x0019660D ... hi = 0x19 = 25, lo = 0x660D = 26125
+// b = 1013904223 = 0x3C6EF35F ... hi = 0x3C6E = 15470, lo = 0xF35F = 62303 = 32767 + 29536
+// c = 0x61C88647 = 1640531527 ... chosen since 
+//     2^32 * (1 - 1/(golden ratio)) = 1640531526.50277 ...
+//     hi = 0x61C8 = 25032, lo = 0x8647 = 34375 = 32767 + 1608.
+// These numbers are way too big for my largest literal, 32767.
+// So I'll have to build them up in the constructor from their hi, lo parts.
+//
+// constructor takes seed_hi, seed_lo (two 16-bit ints)
+class RandomLCG {
+  field IntThirtyTwo r;
+  field IntThirtyTwo w;
+
+  field IntThirtyTwo a;
+  field IntThirtyTwo b;
+  field IntThirtyTwo c;
+
+  field IntThirtyTwo temp_a;
+  field IntThirtyTwo temp_b;
+  field IntThirtyTwo temp_c;
+
+  constructor RandomLCG new(int seed_hi, int seed_lo) {
+    let r = IntThirtyTwo.new(seed_hi, seed_lo);
+    let w = IntThirtyTwo.new(0, 0);
+
+    let a = IntThirtyTwo.new(25, 26125);
+    let b = IntThirtyTwo.new(15470, (32767 + 29536));
+    let c = IntThirtyTwo.new(25032, (32767 + 1608));
+
+    let temp_a = IntThirtyTwo.new(0, 0);
+    let temp_b = IntThirtyTwo.new(0, 0);
+    let temp_c = IntThirtyTwo.new(0, 0);
+
+    return this;
+  }
+
+  method int random() {
+    do IntThirtyTwo.unsigned_multiply(temp_c, r, a, temp_a, temp_b);
+    do IntThirtyTwo.add(r, temp_c, b);
+    do IntThirtyTwo.add(w, w, c);
+    do IntThirtyTwo.add(temp_a, r, w);
+    return (temp_a.hi()) & 32767;
+  }
+
+  method void dispose() {
+    do r.dispose();
+    do w.dispose();
+
+    do a.dispose();
+    do b.dispose();
+    do c.dispose();
+
+    do temp_a.dispose();
+    do temp_b.dispose();
+    do temp_c.dispose();
+
+    return;
+  }
+}
