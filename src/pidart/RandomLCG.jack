@@ -26,9 +26,9 @@ class RandomLCG {
   field IntThirtyTwo b;
   field IntThirtyTwo c;
 
-  field IntThirtyTwo temp_a;
-  field IntThirtyTwo temp_b;
-  field IntThirtyTwo temp_c;
+  field IntThirtyTwo temp_aa;
+  field IntThirtyTwo temp_bb;
+  field IntThirtyTwo temp_cc;
 
   constructor RandomLCG new(int seed_hi, int seed_lo) {
     let r = IntThirtyTwo.new(seed_hi, seed_lo);
@@ -38,19 +38,19 @@ class RandomLCG {
     let b = IntThirtyTwo.new(15470, (32767 + 29536));
     let c = IntThirtyTwo.new(25032, (32767 + 1608));
 
-    let temp_a = IntThirtyTwo.new(0, 0);
-    let temp_b = IntThirtyTwo.new(0, 0);
-    let temp_c = IntThirtyTwo.new(0, 0);
+    let temp_aa = IntThirtyTwo.new(0, 0);
+    let temp_bb = IntThirtyTwo.new(0, 0);
+    let temp_cc = IntThirtyTwo.new(0, 0);
 
     return this;
   }
 
   method int random() {
-    do IntThirtyTwo.unsigned_multiply(temp_c, r, a, temp_a, temp_b);
-    do IntThirtyTwo.add(r, temp_c, b);
+    do IntThirtyTwo.unsigned_multiply(temp_cc, r, a, temp_aa, temp_bb);
+    do IntThirtyTwo.add(r, temp_cc, b);
     do IntThirtyTwo.add(w, w, c);
-    do IntThirtyTwo.add(temp_a, r, w);
-    return (temp_a.hi()) & 32767;
+    do IntThirtyTwo.add(temp_aa, r, w);
+    return (temp_aa.hi()) & 32767;
   }
 
   method void dispose() {
@@ -61,9 +61,9 @@ class RandomLCG {
     do b.dispose();
     do c.dispose();
 
-    do temp_a.dispose();
-    do temp_b.dispose();
-    do temp_c.dispose();
+    do temp_aa.dispose();
+    do temp_bb.dispose();
+    do temp_cc.dispose();
 
     return;
   }
