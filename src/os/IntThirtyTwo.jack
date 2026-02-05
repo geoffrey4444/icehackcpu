@@ -28,10 +28,12 @@ class IntThirtyTwo {
 
   method void setHi(int hi) {
     let value_hi = hi;
+    return;
   }
 
   method void setLo(int lo) {
     let value_lo = lo;
+    return;
   }
 
   function boolean ultSixteen(int a, int b) {
