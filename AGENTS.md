@@ -1,34 +1,33 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `logic/` holds Verilog source and testbench files.
-  - `logic/gates.v` contains basic combinational gate modules.
-  - `logic/top*v` are IceBreaker top-level modules wired to buttons/LEDs.
-  - `logic/tb.v` is the simulation testbench.
-- `scripts/` contains helper scripts for simulation and FPGA programming.
-- `icebreaker.pcf` defines the FPGA pin constraints.
+- `computer/`, `memory/`, `logic/`, `math/`, `uart/`, `led/`: Verilog modules and testbenches (`tb_*.v`) for the Hack CPU and peripherals.
+- `assembler/`, `compiler/`, `vm/`: Python tooling for Hack assembly, Jack compilation, and VM translation.
+- `src/`: Example programs, OS sources, and demo apps (Jack, VM, ASM).
+- `scripts/`: Build, test, and board install helpers.
+- `icebreaker.pcf`: iCEBreaker FPGA pin constraints.
 
 ## Build, Test, and Development Commands
-- `scripts/runtest.sh logic/tb.v logic/gates.v` runs a single simulation with Icarus Verilog and `vvp`.
-- `scripts/runtests.sh` runs the current testbench suite (currently just `logic/tb.v`).
-- `scripts/install.sh logic/top.v logic/gates.v` synthesizes with Yosys, places/routes with nextpnr, packs with icepack, and flashes with iceprog.
+- `scripts/runtests.sh`: Runs the full Verilog + assembler/translator test suite via `iverilog`/`vvp` and Python tools.
+- `scripts/runtest.sh <tb.v> <deps...>`: Runs a single Verilog testbench (pass the testbench first, then dependent modules).
+- `scripts/install.sh [-p payload.bin] <verilog files...>`: Synthesizes with `yosys`, places/routes with `nextpnr-ice40`, packs with `icepack`, and flashes via `iceprog`.
+- `scripts/install_computer.sh <Program.bin>`: Builds and flashes the full computer image plus payload.
+- `scripts/install_computer_from_directory.sh -d src/hello`: Compiles Jack -> VM -> ASM -> Hack -> binary and flashes program + string table.
 
 ## Coding Style & Naming Conventions
-- Use 2-space indentation and align ports with named connections.
-- Modules are lowercase with numeric suffixes (e.g., `nand2`, `xor2`).
-- Instance names use a descriptive prefix like `u_` or `my_`.
-- Keep `default_nettype none` at the top of new Verilog files.
+- Verilog: 2-space indentation, lower_snake_case signals, lower_snake_case module names, explicit `wire`/`reg` declarations.
+- Python: 4-space indentation, clear function naming; keep scripts runnable with `uv run` (used throughout `scripts/`).
+- Shell: bash with `set -eu`, prefer readable, linear pipelines.
 
 ## Testing Guidelines
-- Simulation uses Icarus Verilog (`iverilog -g2012`) with `vvp`.
-- Testbenches live in `logic/` and use short, explicit `#1` delays with `$fatal` checks.
-- Name new testbenches `*_tb.v` or extend `logic/tb.v` with additional vectors.
+- Verilog tests live alongside modules as `tb_*.v`.
+- Run targeted tests with `scripts/runtest.sh` before hardware flashing when possible.
+- Python tools are exercised by `scripts/runtests.sh` using `uv run python ...`.
 
 ## Commit & Pull Request Guidelines
-- Commit messages are short, imperative, and capitalized (e.g., “Add unit tests with simulator”).
-- PRs should include: a concise description, test command(s) run, and any hardware impact notes.
-- For board changes, note which pins or LEDs were affected (referencing `icebreaker.pcf`).
+- Commit messages are short, imperative, and sentence case (e.g., "Fix bugs in division").
+- PRs should describe the hardware or toolchain impact, note tests run (command + result), and include any relevant output or screenshots if changing I/O behavior (UART/LED).
 
-## Toolchain Notes
-- FPGA flow expects `yosys`, `nextpnr-ice40`, `icepack`, and `iceprog` on PATH.
-- Simulation expects `iverilog` and `vvp` installed.
+## Hardware & Toolchain Notes
+- Requires `yosys`, `nextpnr-ice40`, `icepack`, `iceprog`, and `iverilog`.
+- Payload flashing uses fixed offsets; verify sizes in `scripts/install.sh` and `scripts/install_computer_from_directory.sh` before changing ROM layouts.
