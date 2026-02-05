@@ -2,14 +2,16 @@ class Main {
   function void main() {
     var RandomLCG gen;
     var IntThirtyTwo number_to_print;
-    var String digits;
+    var String digits, output, seed_hi_text, seed_lo_text, throws_logten_text;
     var IntThirtyTwo temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g;
     var IntThirtyTwo x, y, x_sq, y_sq, r_sq, circ_r_sq;
-    var int i, hits, x_int, y_int;
+    var int j, seed_hi, seed_lo, throws_logten;
+
+    var int x_int, y_int;
+    var IntThirtyTwo i, hits, one, four, ten, div, number_of_throws;
 
     do Output.printString("Beginning pi dartboard calculation...\r\n");
 
-    let gen = RandomLCG.new(44, 44);
     let digits = String.new(255);
     let number_to_print = IntThirtyTwo.new(0, 0);
 
@@ -27,43 +29,97 @@ class Main {
     let y_sq = IntThirtyTwo.new(0, 0);
     let r_sq = IntThirtyTwo.new(0, 0);
 
+    let seed_hi_text = String.new(255);
+    let seed_lo_text = String.new(255);
+    let throws_logten_text = String.new(255);
+
     // In circle if r <= 32767 (length of square side), or if 
     // r * r < 32767^2 = 1,073,676,289 = 0x3FFF0001, hi = 16383, lo = 1
     let circ_r_sq = IntThirtyTwo.new(16383, 1);
+    
+    let one = IntThirtyTwo.new(0, 1);
+    let four = IntThirtyTwo.new(0, 4);
+    let ten = IntThirtyTwo.new(0, 10);
+    let div = IntThirtyTwo.new(0, 10000);
 
-    let i = 0;
-    let hits = 0;
+    while (true) {
+      do Output.printString("Please enter a seed 0-32767\r\n> ");
+      do seed_hi_text.read(true);
+      do Output.printString("\r\nPlease enter another seed 0-32767\r\n> ");
+      do seed_lo_text.read(true);
+      do Output.printString("\r\nPlease enter N (1-6) to throw 10^N darts.\r\n> ");
+      do throws_logten_text.read(true);
+      do Output.printString("\r\n");
 
-    while (i < 100) {
-      // Throw a dart. Dart lands at (x,y), where 0 <= x, y <= 32767.      
-      let x_int = gen.random();
-      do x.setLo(x_int);
-      // do x.setHi(0);
-      let y_int = gen.random();
-      do y.setLo(y_int);
-      // do y.setHi(0);
-      do IntThirtyTwo.unsigned_multiply(x_sq, x, x, temp_a, temp_b);
-      do IntThirtyTwo.unsigned_multiply(y_sq, y, y, temp_a, temp_b);
-      do IntThirtyTwo.add(r_sq, x_sq, y_sq);
-      if (IntThirtyTwo.ult(r_sq, circ_r_sq)) {
-        let hits = hits + 1;
+      let seed_hi = seed_hi_text.intValue();
+      let seed_lo = seed_lo_text.intValue();
+      let throws_logten = throws_logten_text.intValue();
+
+      let gen = RandomLCG.new(seed_hi, seed_lo);
+      let j = 0;
+      let number_of_throws = IntThirtyTwo.new(0, 1);
+      while (j < throws_logten) {
+        do IntThirtyTwo.unsigned_multiply(temp_g, number_of_throws, ten, temp_a, temp_b);
+        do number_of_throws.setLo(temp_g.lo());
+        do number_of_throws.setHi(temp_g.hi());
+        let j = j + 1;
       }
 
-      do Output.printInt(i);
-      do Output.printString(" ");
-      do Output.printInt(hits);
-      do Output.printString("\r\n");      
+      let i = IntThirtyTwo.new(0, 0);
+      let hits = IntThirtyTwo.new(0, 0);      
+
+      while (IntThirtyTwo.ult(i, number_of_throws)) {
+        // Throw a dart. Dart lands at (x,y), where 0 <= x, y <= 32767.      
+        let x_int = gen.random();
+        do x.setLo(x_int);
+
+        let y_int = gen.random();
+        do y.setLo(y_int);
+        
+        // Compute radius squared ... hit if < circ_r_sq
+        do IntThirtyTwo.unsigned_multiply(x_sq, x, x, temp_a, temp_b);
+        do IntThirtyTwo.unsigned_multiply(y_sq, y, y, temp_a, temp_b);
+        do IntThirtyTwo.add(r_sq, x_sq, y_sq);
+        if (IntThirtyTwo.ult(r_sq, circ_r_sq)) {
+          // let hits = hits + 1;
+          do IntThirtyTwo.add(hits, hits, one);
+          do Output.printString("!");
+        } else {
+          do Output.printString(".");
+        }     
+        
+        // let i = i + 1;
+        do IntThirtyTwo.add(i, i, one);
+      }
       
-      let i = i + 1;
+      do Output.printString("\r\n");
+
+      // Compute pi digits: 4 * hits / thrown
+      // Fixed point math: multiply by 10000 (so effectively 4 decimal places)
+      // Then do 4 * hits / throws
+      // Then make a new string that inserts the . after the first digit
+      do Output.printString("Estimating pi = 4 * hits / (darts thrown)\r\n");
+      do IntThirtyTwo.unsigned_multiply(temp_g, hits, div, temp_a, temp_b);
+      do IntThirtyTwo.unsigned_multiply(temp_f, four, temp_g, temp_a, temp_b);
+      do IntThirtyTwo.unsigned_divide(number_to_print, temp_f, number_of_throws, temp_a, temp_b, temp_c, temp_d);
+
+      do Output.printString("Getting decimal digits of pi estimate...\r\n");
+      do digits.setValueIntThirtyTwo(number_to_print, temp_a, temp_b, temp_c, temp_d, temp_e, temp_f, temp_g);
+
+      do Output.printString("Pi estimate: ");
+
+      let output = String.new(255);
+      let j = 0;
+      while (j < digits.length()) {
+        do output.appendChar(digits.charAt(j));
+        if (j = 0) {
+          do output.appendChar(46); // . = decimal point = ASCII 46
+        }
+        let j = j + 1;
+      }
+      do Output.printString(output);
+      do Output.printString("\r\n");
     }
-
-    do Output.printString("Hits: ");
-    do Output.printInt(hits);
-    do Output.printString("\r\n");
-    do Output.printString("Darts thrown: ");
-    do Output.printInt(i);
-    do Output.printString("\r\n");
-
     return;
   }
 }
